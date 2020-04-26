@@ -1232,6 +1232,9 @@ passing keys as strings or `Buffer`s due to improved security features.
 <!-- YAML
 added: v11.6.0
 changes:
+  - version: v13.9.0
+    pr-url: https://github.com/nodejs/node/pull/31178
+    description: Added support for `'dh'`.
   - version: v12.0.0
     pr-url: https://github.com/nodejs/node/pull/26960
     description: Added support for `'rsa-pss'`
@@ -1260,6 +1263,7 @@ types are:
 * `'x448'` (OID 1.3.101.111)
 * `'ed25519'` (OID 1.3.101.112)
 * `'ed448'` (OID 1.3.101.113)
+* `'dh'` (OID 1.2.840.113549.1.3.1)
 
 This property is `undefined` for unrecognized `KeyObject` types and symmetric
 keys.
@@ -1364,8 +1368,8 @@ const signature = sign.sign(privateKey, 'hex');
 const verify = crypto.createVerify('SHA256');
 verify.write('some data to sign');
 verify.end();
-console.log(verify.verify(publicKey, signature));
-// Prints: true or false
+console.log(verify.verify(publicKey, signature, 'hex'));
+// Prints: true
 ```
 
 Example: Using the [`sign.update()`][] and [`verify.update()`][] methods:
@@ -2085,10 +2089,27 @@ the corresponding digest algorithm. This does not work for all signature
 algorithms, such as `'ecdsa-with-SHA256'`, so it is best to always use digest
 algorithm names.
 
+### `crypto.diffieHellman(options)`
+<!-- YAML
+added: v13.9.0
+-->
+
+* `options`: {Object}
+  * `privateKey`: {KeyObject}
+  * `publicKey`: {KeyObject}
+* Returns: {Buffer}
+
+Computes the Diffie-Hellman secret based on a `privateKey` and a `publicKey`.
+Both keys must have the same `asymmetricKeyType`, which must be one of `'dh'`
+(for Diffie-Hellman), `'ec'` (for ECDH), `'x448'`, or `'x25519'` (for ECDH-ES).
+
 ### `crypto.generateKeyPair(type, options, callback)`
 <!-- YAML
 added: v10.12.0
 changes:
+  - version: v13.9.0
+    pr-url: https://github.com/nodejs/node/pull/31178
+    description: Add support for Diffie-Hellman.
   - version: v12.0.0
     pr-url: https://github.com/nodejs/node/pull/26774
     description: Add ability to generate X25519 and X448 key pairs.
@@ -2102,12 +2123,17 @@ changes:
 -->
 
 * `type`: {string} Must be `'rsa'`, `'dsa'`, `'ec'`, `'ed25519'`, `'ed448'`,
-  `'x25519'`, or `'x448'`.
+  `'x25519'`, `'x448'`, or `'dh'`.
 * `options`: {Object}
   * `modulusLength`: {number} Key size in bits (RSA, DSA).
   * `publicExponent`: {number} Public exponent (RSA). **Default:** `0x10001`.
   * `divisorLength`: {number} Size of `q` in bits (DSA).
   * `namedCurve`: {string} Name of the curve to use (EC).
+  * `prime`: {Buffer} The prime parameter (DH).
+  * `primeLength`: {number} Prime length in bits (DH).
+  * `generator`: {number} Custom generator (DH). **Default:** `2`.
+  * `groupName`: {string} Diffie-Hellman group name (DH). See
+    [`crypto.getDiffieHellman()`][].
   * `publicKeyEncoding`: {Object} See [`keyObject.export()`][].
   * `privateKeyEncoding`: {Object} See [`keyObject.export()`][].
 * `callback`: {Function}
@@ -2115,8 +2141,8 @@ changes:
   * `publicKey`: {string | Buffer | KeyObject}
   * `privateKey`: {string | Buffer | KeyObject}
 
-Generates a new asymmetric key pair of the given `type`. RSA, DSA, EC, Ed25519
-and Ed448 are currently supported.
+Generates a new asymmetric key pair of the given `type`. RSA, DSA, EC, Ed25519,
+Ed448, X25519, X448, and DH are currently supported.
 
 If a `publicKeyEncoding` or `privateKeyEncoding` was specified, this function
 behaves as if [`keyObject.export()`][] had been called on its result. Otherwise,
@@ -2154,6 +2180,9 @@ a `Promise` for an `Object` with `publicKey` and `privateKey` properties.
 <!-- YAML
 added: v10.12.0
 changes:
+  - version: v13.9.0
+    pr-url: https://github.com/nodejs/node/pull/31178
+    description: Add support for Diffie-Hellman.
   - version: v12.0.0
     pr-url: https://github.com/nodejs/node/pull/26554
     description: Add ability to generate Ed25519 and Ed448 key pairs.
@@ -2163,20 +2192,26 @@ changes:
                  produce key objects if no encoding was specified.
 -->
 
-* `type`: {string} Must be `'rsa'`, `'dsa'`, `'ec'`, `'ed25519'`, or `'ed448'`.
+* `type`: {string} Must be `'rsa'`, `'dsa'`, `'ec'`, `'ed25519'`, `'ed448'`,
+  `'x25519'`, `'x448'`, or `'dh'`.
 * `options`: {Object}
   * `modulusLength`: {number} Key size in bits (RSA, DSA).
   * `publicExponent`: {number} Public exponent (RSA). **Default:** `0x10001`.
   * `divisorLength`: {number} Size of `q` in bits (DSA).
   * `namedCurve`: {string} Name of the curve to use (EC).
+  * `prime`: {Buffer} The prime parameter (DH).
+  * `primeLength`: {number} Prime length in bits (DH).
+  * `generator`: {number} Custom generator (DH). **Default:** `2`.
+  * `groupName`: {string} Diffie-Hellman group name (DH). See
+    [`crypto.getDiffieHellman()`][].
   * `publicKeyEncoding`: {Object} See [`keyObject.export()`][].
   * `privateKeyEncoding`: {Object} See [`keyObject.export()`][].
 * Returns: {Object}
   * `publicKey`: {string | Buffer | KeyObject}
   * `privateKey`: {string | Buffer | KeyObject}
 
-Generates a new asymmetric key pair of the given `type`. RSA, DSA, EC, Ed25519
-and Ed448 are currently supported.
+Generates a new asymmetric key pair of the given `type`. RSA, DSA, EC, Ed25519,
+Ed448, X25519, X448, and DH are currently supported.
 
 If a `publicKeyEncoding` or `privateKeyEncoding` was specified, this function
 behaves as if [`keyObject.export()`][] had been called on its result. Otherwise,
@@ -2273,8 +2308,9 @@ console.log(aliceSecret === bobSecret);
 added: v10.0.0
 -->
 
-* Returns: {boolean} `true` if and only if a FIPS compliant crypto provider is
-  currently in use.
+* Returns: {number} `1` if and only if a FIPS compliant crypto provider is
+  currently in use, `0` otherwise. A future semver-major release may change
+  the return type of this API to a {boolean}.
 
 ### `crypto.getHashes()`
 <!-- YAML
@@ -2293,7 +2329,7 @@ console.log(hashes); // ['DSA', 'DSA-SHA', 'DSA-SHA1', ...]
 <!-- YAML
 added: v0.5.5
 changes:
-  - version: REPLACEME
+  - version: v14.0.0
     pr-url: https://github.com/nodejs/node/pull/30578
     description: The `iterations` parameter is now restricted to positive
                  values. Earlier releases treated other values as one.
@@ -2372,7 +2408,7 @@ negative performance implications for some applications; see the
 <!-- YAML
 added: v0.9.3
 changes:
-  - version: REPLACEME
+  - version: v14.0.0
     pr-url: https://github.com/nodejs/node/pull/30578
     description: The `iterations` parameter is now restricted to positive
                  values. Earlier releases treated other values as one.
@@ -2447,8 +2483,10 @@ changes:
 -->
 
 * `privateKey` {Object | string | Buffer | KeyObject}
-  * `oaepHash` {string} The hash function to use for OAEP padding.
+  * `oaepHash` {string} The hash function to use for OAEP padding and MGF1.
     **Default:** `'sha1'`
+  * `oaepLabel` {Buffer | TypedArray | DataView} The label to use for OAEP
+     padding. If not specified, no label is used.
   * `padding` {crypto.constants} An optional padding value defined in
     `crypto.constants`, which may be: `crypto.constants.RSA_NO_PADDING`,
     `crypto.constants.RSA_PKCS1_PADDING`, or
@@ -2535,8 +2573,10 @@ changes:
 
 * `key` {Object | string | Buffer | KeyObject}
   * `key` {string | Buffer | KeyObject} A PEM encoded public or private key.
-  * `oaepHash` {string} The hash function to use for OAEP padding.
+  * `oaepHash` {string} The hash function to use for OAEP padding and MGF1.
     **Default:** `'sha1'`
+  * `oaepLabel` {Buffer | TypedArray | DataView} The label to use for OAEP
+     padding. If not specified, no label is used.
   * `passphrase` {string | Buffer} An optional passphrase for the private key.
   * `padding` {crypto.constants} An optional padding value defined in
     `crypto.constants`, which may be: `crypto.constants.RSA_NO_PADDING`,

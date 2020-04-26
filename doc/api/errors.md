@@ -533,14 +533,14 @@ program. For a comprehensive list, see the [`errno`(3) man page][].
   `ulimit -n 2048` in the same shell that will run the Node.js process.
 
 * `ENOENT` (No such file or directory): Commonly raised by [`fs`][] operations
-  to indicate that a component of the specified pathname does not exist — no
+  to indicate that a component of the specified pathname does not exist. No
   entity (file or directory) could be found by the given path.
 
 * `ENOTDIR` (Not a directory): A component of the given pathname existed, but
   was not a directory as expected. Commonly raised by [`fs.readdir`][].
 
 * `ENOTEMPTY` (Directory not empty): A directory with entries was the target
-  of an operation that requires an empty directory — usually [`fs.unlink`][].
+  of an operation that requires an empty directory, usually [`fs.unlink`][].
 
 * `ENOTFOUND` (DNS lookup failed): Indicates a DNS failure of either
   `EAI_NODATA` or `EAI_NONAME`. This is not a standard POSIX error.
@@ -555,7 +555,7 @@ program. For a comprehensive list, see the [`errno`(3) man page][].
 
 * `ETIMEDOUT` (Operation timed out): A connect or send request failed because
   the connected party did not properly respond after a period of time. Usually
-  encountered by [`http`][] or [`net`][] — often a sign that a `socket.end()`
+  encountered by [`http`][] or [`net`][]. Often a sign that a `socket.end()`
   was not properly called.
 
 ## Class: `TypeError`
@@ -710,6 +710,14 @@ STDERR/STDOUT, and the data's length is longer than the `maxBuffer` option.
 `Console` was instantiated without `stdout` stream, or `Console` has a
 non-writable `stdout` or `stderr` stream.
 
+<a id="ERR_CONTEXT_NOT_INITIALIZED"></a>
+### `ERR_CONTEXT_NOT_INITIALIZED`
+
+The vm context passed into the API is not yet initialized. This could happen
+when an error occurs (and is caught) during the creation of the
+context, for example, when the allocation fails or the maximum call stack
+size is reached when the context is created.
+
 <a id="ERR_CONSTRUCT_CALL_REQUIRED"></a>
 ### `ERR_CONSTRUCT_CALL_REQUIRED`
 
@@ -776,6 +784,11 @@ be called no more than one time per instance of a `Hash` object.
 
 [`hash.update()`][] failed for any reason. This should rarely, if ever, happen.
 
+<a id="ERR_CRYPTO_INCOMPATIBLE_KEY"></a>
+### `ERR_CRYPTO_INCOMPATIBLE_KEY`
+
+The given crypto keys are incompatible with the attempted operation.
+
 <a id="ERR_CRYPTO_INCOMPATIBLE_KEY_OPTIONS"></a>
 ### `ERR_CRYPTO_INCOMPATIBLE_KEY_OPTIONS`
 
@@ -826,6 +839,17 @@ A signing `key` was not provided to the [`sign.sign()`][] method.
 [`crypto.timingSafeEqual()`][] was called with `Buffer`, `TypedArray`, or
 `DataView` arguments of different lengths.
 
+<a id="ERR_CRYPTO_UNKNOWN_CIPHER"></a>
+### `ERR_CRYPTO_UNKNOWN_CIPHER`
+
+An unknown cipher was specified.
+
+<a id="ERR_CRYPTO_UNKNOWN_DH_GROUP"></a>
+### `ERR_CRYPTO_UNKNOWN_DH_GROUP`
+
+An unknown Diffie-Hellman group name was given. See
+[`crypto.getDiffieHellman()`][] for a list of valid group names.
+
 <a id="ERR_DIR_CLOSED"></a>
 ### `ERR_DIR_CLOSED`
 
@@ -864,6 +888,13 @@ provided.
 
 Encoding provided to `TextDecoder()` API was not one of the
 [WHATWG Supported Encodings][].
+
+<a id="ERR_EXECUTION_ENVIRONMENT_NOT_AVAILABLE"></a>
+### `ERR_EXECUTION_ENVIRONMENT_NOT_AVAILABLE`
+
+The JS execution context is not associated with a Node.js environment.
+This may occur when Node.js is used as an embedded library and some hooks
+for the JS engine are not set up properly.
 
 <a id="ERR_FALSY_VALUE_REJECTION"></a>
 ### `ERR_FALSY_VALUE_REJECTION`
@@ -1163,12 +1194,12 @@ is set for the `Http2Stream`.
 ### `ERR_INTERNAL_ASSERTION`
 
 There was a bug in Node.js or incorrect usage of Node.js internals.
-To fix the error, open an issue at https://github.com/nodejs/node/issues.
+To fix the error, open an issue at <https://github.com/nodejs/node/issues>.
 
 <a id="ERR_INCOMPATIBLE_OPTION_PAIR"></a>
 ### `ERR_INCOMPATIBLE_OPTION_PAIR`
 
-An option pair is incompatible with each other and can not be used at the same
+An option pair is incompatible with each other and cannot be used at the same
 time.
 
 <a id="ERR_INPUT_TYPE_NOT_ALLOWED"></a>
@@ -1303,6 +1334,12 @@ An invalid HTTP token was supplied.
 
 An IP address is not valid.
 
+<a id="ERR_INVALID_MODULE_SPECIFIER"></a>
+### `ERR_INVALID_MODULE_SPECIFIER`
+
+The imported module string is an invalid URL, package name, or package subpath
+specifier.
+
 <a id="ERR_INVALID_OPT_VALUE"></a>
 ### `ERR_INVALID_OPT_VALUE`
 
@@ -1317,6 +1354,12 @@ An invalid or unknown file encoding was passed.
 ### `ERR_INVALID_PACKAGE_CONFIG`
 
 An invalid `package.json` file was found which failed parsing.
+
+<a id="ERR_INVALID_PACKAGE_TARGET"></a>
+### `ERR_INVALID_PACKAGE_TARGET`
+
+The `package.json` [exports][] field contains an invalid target mapping value
+for the attempted module resolution.
 
 <a id="ERR_INVALID_PERFORMANCE_MARK"></a>
 ### `ERR_INVALID_PERFORMANCE_MARK`
@@ -1514,6 +1557,12 @@ strict compliance with the API specification (which in some cases may accept
 An [ES Module][] loader hook specified `format: 'dynamic'` but did not provide
 a `dynamicInstantiate` hook.
 
+<a id="ERR_MISSING_OPTION"></a>
+### `ERR_MISSING_OPTION`
+
+For APIs that accept options objects, some options might be mandatory. This code
+is thrown if a required option is missing.
+
 <a id="ERR_MISSING_MESSAGE_PORT_IN_TRANSFER_LIST"></a>
 ### `ERR_MISSING_MESSAGE_PORT_IN_TRANSFER_LIST`
 
@@ -1618,6 +1667,21 @@ A non-context-aware native addon was loaded in a process that disallows them.
 
 A given value is out of the accepted range.
 
+<a id="ERR_PACKAGE_PATH_NOT_EXPORTED"></a>
+### `ERR_PACKAGE_PATH_NOT_EXPORTED`
+
+The `package.json` [exports][] field does not export the requested subpath.
+Because exports are encapsulated, private internal modules that are not exported
+cannot be imported through the package resolution, unless using an absolute URL.
+
+<a id="ERR_PROTO_ACCESS"></a>
+### `ERR_PROTO_ACCESS`
+
+Accessing `Object.prototype.__proto__` has been forbidden using
+[`--disable-proto=throw`][]. [`Object.getPrototypeOf`][] and
+[`Object.setPrototypeOf`][] should be used to get and set the prototype of an
+object.
+
 <a id="ERR_REQUIRE_ESM"></a>
 ### `ERR_REQUIRE_ESM`
 
@@ -1677,11 +1741,6 @@ value.
 
 While using [`dgram.createSocket()`][], the size of the receive or send `Buffer`
 could not be determined.
-
-<a id="ERR_SOCKET_CANNOT_SEND"></a>
-### `ERR_SOCKET_CANNOT_SEND`
-
-Data could be sent on a socket.
 
 <a id="ERR_SOCKET_CLOSED"></a>
 ### `ERR_SOCKET_CLOSED`
@@ -1792,7 +1851,7 @@ additional details.
 <a id="ERR_TLS_CERT_ALTNAME_INVALID"></a>
 ### `ERR_TLS_CERT_ALTNAME_INVALID`
 
-While using TLS, the hostname/IP of the peer did not match any of the
+While using TLS, the host name/IP of the peer did not match any of the
 `subjectAltNames` in its certificate.
 
 <a id="ERR_TLS_DH_PARAM_SIZE"></a>
@@ -1809,13 +1868,22 @@ recommended to use 2048 bits or larger for stronger security.
 A TLS/SSL handshake timed out. In this case, the server must also abort the
 connection.
 
-<a id="ERR_TLS_INVALID_CONTEXT">
+<a id="ERR_TLS_INVALID_CONTEXT"></a>
 ### `ERR_TLS_INVALID_CONTEXT`
 <!-- YAML
 added: v13.3.0
 -->
 
 The context must be a `SecureContext`.
+
+<a id="ERR_TLS_INVALID_STATE"></a>
+### `ERR_TLS_INVALID_STATE`
+<!-- YAML
+added: v13.10.0
+-->
+
+The TLS socket must be connected and securily established. Ensure the 'secure'
+event is emitted before continuing.
 
 <a id="ERR_TLS_INVALID_PROTOCOL_METHOD"></a>
 ### `ERR_TLS_INVALID_PROTOCOL_METHOD`
@@ -1843,7 +1911,7 @@ An attempt was made to renegotiate TLS on a socket instance with TLS disabled.
 ### `ERR_TLS_REQUIRED_SERVER_NAME`
 
 While using TLS, the `server.addContext()` method was called without providing
-a hostname in the first parameter.
+a host name in the first parameter.
 
 <a id="ERR_TLS_SESSION_ATTACK"></a>
 ### `ERR_TLS_SESSION_ATTACK`
@@ -1898,6 +1966,12 @@ A `Transform` stream finished with data still in the write buffer.
 ### `ERR_TTY_INIT_FAILED`
 
 The initialization of a TTY failed due to a system error.
+
+<a id="ERR_UNAVAILABLE_DURING_EXIT"></a>
+### `ERR_UNAVAILABLE_DURING_EXIT`
+
+Function was called within a [`process.on('exit')`][] handler that shouldn't be
+called within [`process.on('exit')`][] handler.
 
 <a id="ERR_UNCAUGHT_EXCEPTION_CAPTURE_ALREADY_SET"></a>
 ### `ERR_UNCAUGHT_EXCEPTION_CAPTURE_ALREADY_SET`
@@ -1988,6 +2062,16 @@ the following reasons:
 * It is being linked (`linkingStatus` is `'linking'`)
 * Linking has failed for this module (`linkingStatus` is `'errored'`)
 
+<a id="ERR_VM_MODULE_CACHED_DATA_REJECTED"></a>
+### `ERR_VM_MODULE_CACHED_DATA_REJECTED`
+
+The `cachedData` option passed to a module constructor is invalid.
+
+<a id="ERR_VM_MODULE_CANNOT_CREATE_CACHED_DATA"></a>
+### `ERR_VM_MODULE_CANNOT_CREATE_CACHED_DATA`
+
+Cached data cannot be created for modules which have already been evaluated.
+
 <a id="ERR_VM_MODULE_DIFFERENT_CONTEXT"></a>
 ### `ERR_VM_MODULE_DIFFERENT_CONTEXT`
 
@@ -2015,11 +2099,21 @@ meaning of the error depends on the specific function.
 
 The WASI instance has already started.
 
+<a id="ERR_WORKER_INIT_FAILED"></a>
+### `ERR_WORKER_INIT_FAILED`
+
+The `Worker` initialization failed.
+
 <a id="ERR_WORKER_INVALID_EXEC_ARGV"></a>
 ### `ERR_WORKER_INVALID_EXEC_ARGV`
 
 The `execArgv` option passed to the `Worker` constructor contains
 invalid flags.
+
+<a id="ERR_WORKER_NOT_RUNNING"></a>
+### `ERR_WORKER_NOT_RUNNING`
+
+An operation failed because the `Worker` instance is not currently running.
 
 <a id="ERR_WORKER_OUT_OF_MEMORY"></a>
 ### `ERR_WORKER_OUT_OF_MEMORY`
@@ -2215,6 +2309,15 @@ removed: v10.0.0
 
 The `repl` module was unable to parse data from the REPL history file.
 
+<a id="ERR_SOCKET_CANNOT_SEND"></a>
+### `ERR_SOCKET_CANNOT_SEND`
+<!-- YAML
+added: v9.0.0
+removed: v14.0.0
+-->
+
+Data could not be sent on a socket.
+
 <a id="ERR_STDERR_CLOSE"></a>
 ### `ERR_STDERR_CLOSE`
 <!-- YAML
@@ -2380,6 +2483,12 @@ The `--entry-type=...` flag is not compatible with the Node.js REPL.
 Used when an [ES Module][] loader hook specifies `format: 'dynamic'` but does
 not provide a `dynamicInstantiate` hook.
 
+<a id="ERR_FEATURE_UNAVAILABLE_ON_PLATFORM"></a>
+#### `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM`
+
+Used when a feature that is not available
+to the current platform which is running Node.js is used.
+
 <a id="ERR_STREAM_HAS_STRINGDECODER"></a>
 #### `ERR_STREAM_HAS_STRINGDECODER`
 
@@ -2405,14 +2514,18 @@ This `Error` is thrown when a read is attempted on a TTY `WriteStream`,
 such as `process.stdout.on('data')`.
 
 [`'uncaughtException'`]: process.html#process_event_uncaughtexception
+[`--disable-proto=throw`]: cli.html#cli_disable_proto_mode
 [`--force-fips`]: cli.html#cli_force_fips
 [`Class: assert.AssertionError`]: assert.html#assert_class_assert_assertionerror
 [`ERR_INVALID_ARG_TYPE`]: #ERR_INVALID_ARG_TYPE
 [`EventEmitter`]: events.html#events_class_eventemitter
+[`Object.getPrototypeOf`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/getPrototypeOf
+[`Object.setPrototypeOf`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/setPrototypeOf
 [`REPL`]: repl.html
 [`Writable`]: stream.html#stream_class_stream_writable
 [`child_process`]: child_process.html
 [`cipher.getAuthTag()`]: crypto.html#crypto_cipher_getauthtag
+[`crypto.getDiffieHellman()`]: crypto.html#crypto_crypto_getdiffiehellman_groupname
 [`crypto.scrypt()`]: crypto.html#crypto_crypto_scrypt_password_salt_keylen_options_callback
 [`crypto.scryptSync()`]: crypto.html#crypto_crypto_scryptsync_password_salt_keylen_options
 [`crypto.timingSafeEqual()`]: crypto.html#crypto_crypto_timingsafeequal_a_b
@@ -2436,6 +2549,7 @@ such as `process.stdout.on('data')`.
 [`net`]: net.html
 [`new URL(input)`]: url.html#url_constructor_new_url_input_base
 [`new URLSearchParams(iterable)`]: url.html#url_constructor_new_urlsearchparams_iterable
+[`process.on('exit')`]: process.html#Event:-`'exit'`
 [`process.send()`]: process.html#process_process_send_message_sendhandle_options_callback
 [`process.setUncaughtExceptionCaptureCallback()`]: process.html#process_process_setuncaughtexceptioncapturecallback_fn
 [`readable._read()`]: stream.html#stream_readable_read_size_1
@@ -2461,6 +2575,7 @@ such as `process.stdout.on('data')`.
 [crypto digest algorithm]: crypto.html#crypto_crypto_gethashes
 [domains]: domain.html
 [event emitter-based]: events.html#events_class_eventemitter
+[exports]: esm.html#esm_package_entry_points
 [file descriptors]: https://en.wikipedia.org/wiki/File_descriptor
 [policy]: policy.html
 [stream-based]: stream.html

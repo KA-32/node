@@ -69,10 +69,13 @@ The following key combinations in the REPL have these special effects:
   variables. When pressed while entering other input, displays relevant
   autocompletion options.
 
+For key bindings related to the reverse-i-search, see [`reverse-i-search`][].
+For all other key bindings, see [TTY keybindings][].
+
 ### Default Evaluation
 
 By default, all instances of [`repl.REPLServer`][] use an evaluation function
-that evaluates JavaScript expressions and provides access to Node.js' built-in
+that evaluates JavaScript expressions and provides access to Node.js built-in
 modules. This default behavior can be overridden by passing in an alternative
 evaluation function when the [`repl.REPLServer`][] instance is created.
 
@@ -597,8 +600,9 @@ changes:
     `SIGINT` is received, such as when `Ctrl+C` is pressed. This cannot be used
     together with a custom `eval` function. **Default:** `false`.
   * `preview` {boolean} Defines if the repl prints autocomplete and output
-    previews or not. **Default:** `true`. If `terminal` is falsy, then there are
-    no previews and the value of `preview` has no effect.
+    previews or not. **Default:** `true` with the default eval function and
+    `false` in case a custom eval function is used. If `terminal` is falsy, then
+    there are no previews and the value of `preview` has no effect.
 * Returns: {repl.REPLServer}
 
 The `repl.start()` method creates and starts a [`repl.REPLServer`][] instance.
@@ -737,5 +741,7 @@ For an example of running a REPL instance over [curl(1)][], see:
 [`repl.ReplServer`]: #repl_class_replserver
 [`repl.start()`]: #repl_repl_start_options
 [`util.inspect()`]: util.html#util_util_inspect_object_options
+[`reverse-i-search`]: #repl_reverse_i_search
+[TTY keybindings]: readline.html#readline_tty_keybindings
 [curl(1)]: https://curl.haxx.se/docs/manpage.html
 [stream]: stream.html

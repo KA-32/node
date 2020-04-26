@@ -13,6 +13,8 @@ rules:
       message: "Use `const { Array } = primordials;` instead of the global."
     - name: BigInt
       message: "Use `const { BigInt } = primordials;` instead of the global."
+    - name: BigInt64Array
+      message: "Use `const { BigInt64Array } = primordials;` instead of the global."
     - name: BigUint64Array
       message: "Use `const { BigUint64Array } = primordials;` instead of the global."
     - name: Boolean
@@ -41,6 +43,8 @@ rules:
       message: "Use `const { Set } = primordials;` instead of the global."
     - name: Symbol
       message: "Use `const { Symbol } = primordials;` instead of the global."
+    - name: Uint16Array
+      message: "Use `const { Uint16Array } = primordials;` instead of the global."
     - name: WeakMap
       message: "Use `const { WeakMap } = primordials;` instead of the global."
     - name: WeakSet

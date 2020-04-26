@@ -190,7 +190,7 @@ rejection handler.
 
 There is no notion of a top level for a `Promise` chain at which rejections can
 always be handled. Being inherently asynchronous in nature, a `Promise`
-rejection can be handled at a future point in time — possibly much later than
+rejection can be handled at a future point in time, possibly much later than
 the event loop turn it takes for the `'unhandledRejection'` event to be emitted.
 
 Another way of stating this is that, unlike in synchronous code where there is
@@ -262,6 +262,10 @@ nonexistentFunc();
 console.log('This will not run.');
 ```
 
+It is possible to monitor `'uncaughtException'` events without overriding the
+default behavior to exit the process by installing a
+`'uncaughtExceptionMonitor'` listener.
+
 #### Warning: Using `'uncaughtException'` correctly
 
 `'uncaughtException'` is a crude mechanism for exception handling
@@ -288,6 +292,34 @@ To restart a crashed application in a more reliable way, whether
 `'uncaughtException'` is emitted or not, an external monitor should be employed
 in a separate process to detect application failures and recover or restart as
 needed.
+
+### Event: `'uncaughtExceptionMonitor'`
+<!-- YAML
+added: v13.7.0
+-->
+
+* `err` {Error} The uncaught exception.
+* `origin` {string} Indicates if the exception originates from an unhandled
+  rejection or from synchronous errors. Can either be `'uncaughtException'` or
+  `'unhandledRejection'`.
+
+The `'uncaughtExceptionMonitor'` event is emitted before an
+`'uncaughtException'` event is emitted or a hook installed via
+[`process.setUncaughtExceptionCaptureCallback()`][] is called.
+
+Installing an `'uncaughtExceptionMonitor'` listener does not change the behavior
+once an `'uncaughtException'` event is emitted. The process will
+still crash if no `'uncaughtException'` listener is installed.
+
+```js
+process.on('uncaughtExceptionMonitor', (err, origin) => {
+  MyMonitoringTool.logSync(err, origin);
+});
+
+// Intentionally cause an exception, but don't catch it.
+nonexistentFunc();
+// Still crashes Node.js
+```
 
 ### Event: `'unhandledRejection'`
 <!-- YAML
@@ -470,7 +502,7 @@ process.on('SIGTERM', handle);
 * `'SIGTERM'` is not supported on Windows, it can be listened on.
 * `'SIGINT'` from the terminal is supported on all platforms, and can usually be
   generated with `<Ctrl>+C` (though this may be configurable). It is not
-  generated when terminal raw mode is enabled.
+  generated when [terminal raw mode][] is enabled and `<Ctrl>+C` is used.
 * `'SIGBREAK'` is delivered on Windows when `<Ctrl>+<Break>` is pressed, on
   non-Windows platforms it can be listened on, but there is no way to send or
   generate it.
@@ -486,11 +518,17 @@ process.on('SIGTERM', handle);
    the process hanging in an endless loop, since listeners attached using
    `process.on()` are called asynchronously and therefore unable to correct the
    underlying problem.
+* `0` can be sent to test for the existence of a process, it has no effect if
+   the process exists, but will throw an error if the process does not exist.
 
-Windows does not support sending signals, but Node.js offers some emulation
-with [`process.kill()`][], and [`subprocess.kill()`][]. Sending signal `0` can
-be used to test for the existence of a process. Sending `SIGINT`, `SIGTERM`,
-and `SIGKILL` cause the unconditional termination of the target process.
+Windows does not support signals so has no equivalent to termination by signal,
+but Node.js offers some emulation with [`process.kill()`][], and
+[`subprocess.kill()`][]:
+* Sending `SIGINT`, `SIGTERM`, and `SIGKILL` will cause the unconditional
+  termination of the target process, and afterwards, subprocess will report that
+  the process was terminated by signal.
+* Sending signal `0` can be used as a platform independent way to test for the
+  existence of a process.
 
 ## `process.abort()`
 <!-- YAML
@@ -627,7 +665,7 @@ $ bash -c 'exec -a customArgv0 ./node'
 <!-- YAML
 added: v7.1.0
 changes:
-  - version: REPLACEME
+  - version: v14.0.0
     pr-url: https://github.com/nodejs/node/pull/30165
     description: The object no longer accidentally exposes native C++ bindings.
 -->
@@ -801,7 +839,7 @@ added: v0.7.2
 
 * {number}
 
-The port used by Node.js's debugger when enabled.
+The port used by the Node.js debugger when enabled.
 
 ```js
 process.debugPort = 5858;
@@ -1461,7 +1499,10 @@ debugger. See [Signal Events][].
 ## `process.mainModule`
 <!-- YAML
 added: v0.1.17
+deprecated: v14.0.0
 -->
+
+> Stability: 0 - Deprecated: Use [`require.main`][] instead.
 
 * {Object}
 
@@ -1478,6 +1519,9 @@ is no entry script.
 <!-- YAML
 added: v0.1.16
 changes:
+  - version: v13.9.0
+    pr-url: https://github.com/nodejs/node/pull/31550
+    description: Added `arrayBuffers` to the returned object.
   - version: v7.2.0
     pr-url: https://github.com/nodejs/node/pull/9587
     description: Added `external` to the returned object.
@@ -1488,6 +1532,7 @@ changes:
   * `heapTotal` {integer}
   * `heapUsed` {integer}
   * `external` {integer}
+  * `arrayBuffers` {integer}
 
 The `process.memoryUsage()` method returns an object describing the memory usage
 of the Node.js process measured in bytes.
@@ -1506,19 +1551,22 @@ Will generate:
   rss: 4935680,
   heapTotal: 1826816,
   heapUsed: 650472,
-  external: 49879
+  external: 49879,
+  arrayBuffers: 9386
 }
 ```
 
-`heapTotal` and `heapUsed` refer to V8's memory usage.
-`external` refers to the memory usage of C++ objects bound to JavaScript
-objects managed by V8. `rss`, Resident Set Size, is the amount of space
-occupied in the main memory device (that is a subset of the total allocated
-memory) for the process, which includes the _heap_, _code segment_ and _stack_.
-
-The _heap_ is where objects, strings, and closures are stored. Variables are
-stored in the _stack_ and the actual JavaScript code resides in the
-_code segment_.
+* `heapTotal` and `heapUsed` refer to V8's memory usage.
+* `external` refers to the memory usage of C++ objects bound to JavaScript
+  objects managed by V8.
+* `rss`, Resident Set Size, is the amount of space occupied in the main
+  memory device (that is a subset of the total allocated memory) for the
+  process, including all C++ and JavaScript objects and code.
+* `arrayBuffers` refers to memory allocated for `ArrayBuffer`s and
+  `SharedArrayBuffer`s, including all Node.js [`Buffer`][]s.
+  This is also included in the `external` value. When Node.js is used as an
+  embedded library, this value may be `0` because allocations for `ArrayBuffer`s
+  may not be tracked in that case.
 
 When using [`Worker`][] threads, `rss` will be a value that is valid for the
 entire process, while the other fields will only refer to the current thread.
@@ -1738,9 +1786,11 @@ relied upon to exist.
 ## `process.report`
 <!-- YAML
 added: v11.8.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * {Object}
 
@@ -1748,12 +1798,29 @@ added: v11.8.0
 reports for the current process. Additional documentation is available in the
 [report documentation][].
 
+### `process.report.compact`
+<!-- YAML
+added: v13.12.0
+-->
+
+* {boolean}
+
+Write reports in a compact format, single-line JSON, more easily consumable
+by log processing systems than the default multi-line format designed for
+human consumption.
+
+```js
+console.log(`Reports are compact? ${process.report.compact}`);
+```
+
 ### `process.report.directory`
 <!-- YAML
 added: v11.12.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * {string}
 
@@ -1768,9 +1835,11 @@ console.log(`Report directory is ${process.report.directory}`);
 ### `process.report.filename`
 <!-- YAML
 added: v11.12.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * {string}
 
@@ -1785,9 +1854,11 @@ console.log(`Report filename is ${process.report.filename}`);
 ### `process.report.getReport([err])`
 <!-- YAML
 added: v11.8.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * `err` {Error} A custom error used for reporting the JavaScript stack.
 * Returns: {Object}
@@ -1826,9 +1897,11 @@ console.log(`Report on fatal error: ${process.report.reportOnFatalError}`);
 ### `process.report.reportOnSignal`
 <!-- YAML
 added: v11.12.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * {boolean}
 
@@ -1842,9 +1915,11 @@ console.log(`Report on signal: ${process.report.reportOnSignal}`);
 ### `process.report.reportOnUncaughtException`
 <!-- YAML
 added: v11.12.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * {boolean}
 
@@ -1857,9 +1932,11 @@ console.log(`Report on exception: ${process.report.reportOnUncaughtException}`);
 ### `process.report.signal`
 <!-- YAML
 added: v11.12.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * {string}
 
@@ -1873,9 +1950,11 @@ console.log(`Report signal: ${process.report.signal}`);
 ### `process.report.writeReport([filename][, err])`
 <!-- YAML
 added: v11.8.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/32242
+    description: This API is no longer considered experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * `filename` {string} Name of the file where the report is written. This
   should be a relative path, that will be appended to the directory specified in
@@ -2158,6 +2237,14 @@ a [Writable][] stream.
 `process.stderr` differs from other Node.js streams in important ways. See
 [note on process I/O][] for more information.
 
+### `process.stderr.fd`
+
+* {number}
+
+This property refers to the value of underlying file descriptor of
+`process.stderr`. The value is fixed at `2`. In [`Worker`][] threads,
+this field does not exist.
+
 ## `process.stdin`
 
 * {Stream}
@@ -2191,6 +2278,14 @@ In "old" streams mode the `stdin` stream is paused by default, so one
 must call `process.stdin.resume()` to read from it. Note also that calling
 `process.stdin.resume()` itself would switch stream to "old" mode.
 
+### `process.stdin.fd`
+
+* {number}
+
+This property refers to the value of underlying file descriptor of
+`process.stdin`. The value is fixed at `0`. In [`Worker`][] threads,
+this field does not exist.
+
 ## `process.stdout`
 
 * {Stream}
@@ -2208,6 +2303,14 @@ process.stdin.pipe(process.stdout);
 
 `process.stdout` differs from other Node.js streams in important ways. See
 [note on process I/O][] for more information.
+
+### `process.stdout.fd`
+
+* {number}
+
+This property refers to the value of underlying file descriptor of
+`process.stdout`. The value is fixed at `1`. In [`Worker`][] threads,
+this field does not exist.
 
 ### A note on process I/O
 
@@ -2320,17 +2423,33 @@ documentation for the [`'warning'` event][process_warning] and the
 [`emitWarning()` method][process_emit_warning] for more information about this
 flag's behavior.
 
-## `process.umask([mask])`
+## `process.umask()`
+<!-- YAML
+added: v0.1.19
+changes:
+  - version: v14.0.0
+    pr-url: https://github.com/nodejs/node/pull/32499
+    description: Calling `process.umask()` with no arguments is deprecated.
+
+-->
+
+> Stability: 0 - Deprecated. Calling `process.umask()` with no argument causes
+> the process-wide umask to be written twice. This introduces a race condition
+> between threads, and is a potential security vulnerability. There is no safe,
+> cross-platform alternative API.
+
+`process.umask()` returns the Node.js process's file mode creation mask. Child
+processes inherit the mask from the parent process.
+
+## `process.umask(mask)`
 <!-- YAML
 added: v0.1.19
 -->
 
 * `mask` {string|integer}
 
-The `process.umask()` method sets or returns the Node.js process's file mode
-creation mask. Child processes inherit the mask from the parent process. Invoked
-without an argument, the current mask is returned, otherwise the umask is set to
-the argument value and the previous mask is returned.
+`process.umask(mask)` sets the Node.js process's file mode creation mask. Child
+processes inherit the mask from the parent process. Returns the previous mask.
 
 ```js
 const newmask = 0o022;
@@ -2340,8 +2459,7 @@ console.log(
 );
 ```
 
-[`Worker`][] threads are able to read the umask, however attempting to set the
-umask will result in a thrown exception.
+In [`Worker`][] threads, `process.umask(mask)` will throw an exception.
 
 ## `process.uptime()`
 <!-- YAML
@@ -2423,11 +2541,11 @@ cases:
   handler.
 * `2`: Unused (reserved by Bash for builtin misuse)
 * `3` **Internal JavaScript Parse Error**: The JavaScript source code
-  internal in Node.js's bootstrapping process caused a parse error. This
+  internal in the Node.js bootstrapping process caused a parse error. This
   is extremely rare, and generally can only happen during development
   of Node.js itself.
 * `4` **Internal JavaScript Evaluation Failure**: The JavaScript
-  source code internal in Node.js's bootstrapping process failed to
+  source code internal in the Node.js bootstrapping process failed to
   return a function value when evaluated. This is extremely rare, and
   generally can only happen during development of Node.js itself.
 * `5` **Fatal Error**: There was a fatal unrecoverable error in V8.
@@ -2446,7 +2564,7 @@ cases:
 * `9` **Invalid Argument**: Either an unknown option was specified,
   or an option requiring a value was provided without a value.
 * `10` **Internal JavaScript Run-Time Failure**: The JavaScript
-  source code internal in Node.js's bootstrapping process threw an error
+  source code internal in the Node.js bootstrapping process threw an error
   when the bootstrapping function was called. This is extremely rare,
   and generally can only happen during development of Node.js itself.
 * `12` **Invalid Debug Argument**: The `--inspect` and/or `--inspect-brk`
@@ -2462,6 +2580,7 @@ cases:
 [`'exit'`]: #process_event_exit
 [`'message'`]: child_process.html#child_process_event_message
 [`'uncaughtException'`]: #process_event_uncaughtexception
+[`Buffer`]: buffer.html
 [`ChildProcess.disconnect()`]: child_process.html#child_process_subprocess_disconnect
 [`ChildProcess.send()`]: child_process.html#child_process_subprocess_send_message_sendhandle_options_callback
 [`ChildProcess`]: child_process.html#child_process_class_childprocess
@@ -2509,6 +2628,7 @@ cases:
 [process_emit_warning]: #process_process_emitwarning_warning_type_code_ctor
 [process_warning]: #process_event_warning
 [report documentation]: report.html
+[terminal raw mode]: tty.html#tty_readstream_setrawmode_mode
 [uv_rusage_t]: http://docs.libuv.org/en/v1.x/misc.html#c.uv_rusage_t
 [wikipedia_minor_fault]: https://en.wikipedia.org/wiki/Page_fault#Minor
 [wikipedia_major_fault]: https://en.wikipedia.org/wiki/Page_fault#Major

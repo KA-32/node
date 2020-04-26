@@ -28,6 +28,8 @@ const customTypesMap = {
 
   'AsyncIterator': 'https://tc39.github.io/ecma262/#sec-asynciterator-interface',
 
+  'AsyncIterable': 'https://tc39.github.io/ecma262/#sec-asynciterable-interface',
+
   'bigint': `${jsDocPrefix}Reference/Global_Objects/BigInt`,
 
   'Iterable':
@@ -101,6 +103,10 @@ const customTypesMap = {
   'https.Server': 'https.html#https_class_https_server',
 
   'module': 'modules.html#modules_the_module_object',
+
+  'module.SourceMap':
+    'modules.html#modules_class_module_sourcemap',
+
   'require': 'modules.html#modules_require_id',
 
   'Handle': 'net.html#net_server_listen_handle_backlog_callback',
@@ -142,6 +148,7 @@ const customTypesMap = {
   'URLSearchParams': 'url.html#url_class_urlsearchparams',
 
   'vm.Module': 'vm.html#vm_class_vm_module',
+  'vm.Script': 'vm.html#vm_class_vm_script',
   'vm.SourceTextModule': 'vm.html#vm_class_vm_sourcetextmodule',
 
   'MessagePort': 'worker_threads.html#worker_threads_class_messageport',

@@ -1,7 +1,7 @@
 #include "node_messaging.h"
 
 #include "async_wrap-inl.h"
-#include "debug_utils.h"
+#include "debug_utils-inl.h"
 #include "memory_tracker-inl.h"
 #include "node_contextify.h"
 #include "node_buffer.h"
@@ -29,7 +29,6 @@ using v8::Maybe;
 using v8::MaybeLocal;
 using v8::Nothing;
 using v8::Object;
-using v8::ObjectTemplate;
 using v8::SharedArrayBuffer;
 using v8::String;
 using v8::Symbol;
@@ -169,6 +168,20 @@ uint32_t Message::AddWASMModule(CompiledWasmModule&& mod) {
 }
 
 namespace {
+
+MaybeLocal<Function> GetEmitMessageFunction(Local<Context> context) {
+  Isolate* isolate = context->GetIsolate();
+  Local<Object> per_context_bindings;
+  Local<Value> emit_message_val;
+  if (!GetPerContextExports(context).ToLocal(&per_context_bindings) ||
+      !per_context_bindings->Get(context,
+                                FIXED_ONE_BYTE_STRING(isolate, "emitMessage"))
+          .ToLocal(&emit_message_val)) {
+    return MaybeLocal<Function>();
+  }
+  CHECK(emit_message_val->IsFunction());
+  return emit_message_val.As<Function>();
+}
 
 MaybeLocal<Function> GetDOMException(Local<Context> context) {
   Isolate* isolate = context->GetIsolate();
@@ -376,9 +389,6 @@ Maybe<bool> Message::Serialize(Environment* env,
   for (Local<ArrayBuffer> ab : array_buffers) {
     // If serialization succeeded, we render it inaccessible in this Isolate.
     std::shared_ptr<BackingStore> backing_store = ab->GetBackingStore();
-    // TODO(addaleax): This can/should be dropped once we have V8 8.0.
-    if (!ab->IsExternal())
-      ab->Externalize(backing_store);
     ab->Detach();
 
     array_buffers_.emplace_back(std::move(backing_store));
@@ -471,10 +481,13 @@ MessagePort::MessagePort(Environment* env,
     MessagePort* channel = ContainerOf(&MessagePort::async_, handle);
     channel->OnMessage();
   };
+
   CHECK_EQ(uv_async_init(env->event_loop(),
                          &async_,
                          onmessage), 0);
-  async_.data = static_cast<void*>(this);
+  // Reset later to indicate success of the constructor.
+  bool succeeded = false;
+  auto cleanup = OnScopeLeave([&]() { if (!succeeded) Close(); });
 
   Local<Value> fn;
   if (!wrap->Get(context, env->oninit_symbol()).ToLocal(&fn))
@@ -482,9 +495,16 @@ MessagePort::MessagePort(Environment* env,
 
   if (fn->IsFunction()) {
     Local<Function> init = fn.As<Function>();
-    USE(init->Call(context, wrap, 0, nullptr));
+    if (init->Call(context, wrap, 0, nullptr).IsEmpty())
+      return;
   }
 
+  Local<Function> emit_message_fn;
+  if (!GetEmitMessageFunction(context).ToLocal(&emit_message_fn))
+    return;
+  emit_message_fn_.Reset(env->isolate(), emit_message_fn);
+
+  succeeded = true;
   Debug(this, "Created message port");
 }
 
@@ -532,6 +552,11 @@ MessagePort* MessagePort::New(
     return nullptr;
   MessagePort* port = new MessagePort(env, context, instance);
   CHECK_NOT_NULL(port);
+  if (port->IsHandleClosing()) {
+    // Construction failed with an exception.
+    return nullptr;
+  }
+
   if (data) {
     port->Detach();
     port->data_ = std::move(data);
@@ -624,16 +649,8 @@ void MessagePort::OnMessage() {
       continue;
     }
 
-    Local<Object> event;
-    Local<Value> cb_args[1];
-    if (!env()->message_event_object_template()->NewInstance(context)
-            .ToLocal(&event) ||
-        event->Set(context, env()->data_string(), payload).IsNothing() ||
-        event->Set(context, env()->target_string(), object()).IsNothing() ||
-        (cb_args[0] = event, false) ||
-        MakeCallback(env()->onmessage_string(),
-                     arraysize(cb_args),
-                     cb_args).IsEmpty()) {
+    Local<Function> emit_message = PersistentToLocal::Strong(emit_message_fn_);
+    if (MakeCallback(emit_message, 1, &payload).IsEmpty()) {
       // Re-schedule OnMessage() execution in case of failure.
       if (data_)
         TriggerAsync();
@@ -848,7 +865,12 @@ void MessagePort::Drain(const FunctionCallbackInfo<Value>& args) {
 }
 
 void MessagePort::ReceiveMessage(const FunctionCallbackInfo<Value>& args) {
-  CHECK(args[0]->IsObject());
+  Environment* env = Environment::GetCurrent(args);
+  if (!args[0]->IsObject() ||
+      !env->message_port_constructor_template()->HasInstance(args[0])) {
+    return THROW_ERR_INVALID_ARG_TYPE(env,
+        "The \"port\" argument must be a MessagePort instance");
+  }
   MessagePort* port = Unwrap<MessagePort>(args[0].As<Object>());
   if (port == nullptr) {
     // Return 'no messages' for a closed port.
@@ -868,7 +890,7 @@ void MessagePort::MoveToContext(const FunctionCallbackInfo<Value>& args) {
   if (!args[0]->IsObject() ||
       !env->message_port_constructor_template()->HasInstance(args[0])) {
     return THROW_ERR_INVALID_ARG_TYPE(env,
-        "First argument needs to be a MessagePort instance");
+        "The \"port\" argument must be a MessagePort instance");
   }
   MessagePort* port = Unwrap<MessagePort>(args[0].As<Object>());
   CHECK_NOT_NULL(port);
@@ -900,6 +922,11 @@ void MessagePort::Entangle(MessagePort* a, MessagePortData* b) {
   MessagePortData::Entangle(a->data_.get(), b);
 }
 
+void MessagePort::MemoryInfo(MemoryTracker* tracker) const {
+  tracker->TrackField("data", data_);
+  tracker->TrackField("emit_message_fn", emit_message_fn_);
+}
+
 Local<FunctionTemplate> GetMessagePortConstructorTemplate(Environment* env) {
   // Factor generating the MessagePort JS constructor into its own piece
   // of code, because it is needed early on in the child environment setup.
@@ -907,25 +934,17 @@ Local<FunctionTemplate> GetMessagePortConstructorTemplate(Environment* env) {
   if (!templ.IsEmpty())
     return templ;
 
-  Isolate* isolate = env->isolate();
-
   {
     Local<FunctionTemplate> m = env->NewFunctionTemplate(MessagePort::New);
     m->SetClassName(env->message_port_constructor_string());
-    m->InstanceTemplate()->SetInternalFieldCount(1);
+    m->InstanceTemplate()->SetInternalFieldCount(
+        MessagePort::kInternalFieldCount);
     m->Inherit(HandleWrap::GetConstructorTemplate(env));
 
     env->SetProtoMethod(m, "postMessage", MessagePort::PostMessage);
     env->SetProtoMethod(m, "start", MessagePort::Start);
 
     env->set_message_port_constructor_template(m);
-
-    Local<FunctionTemplate> event_ctor = FunctionTemplate::New(isolate);
-    event_ctor->SetClassName(FIXED_ONE_BYTE_STRING(isolate, "MessageEvent"));
-    Local<ObjectTemplate> e = event_ctor->InstanceTemplate();
-    e->Set(env->data_string(), Null(isolate));
-    e->Set(env->target_string(), Null(isolate));
-    env->set_message_event_object_template(e);
   }
 
   return GetMessagePortConstructorTemplate(env);
@@ -944,7 +963,13 @@ static void MessageChannel(const FunctionCallbackInfo<Value>& args) {
   Context::Scope context_scope(context);
 
   MessagePort* port1 = MessagePort::New(env, context);
+  if (port1 == nullptr) return;
   MessagePort* port2 = MessagePort::New(env, context);
+  if (port2 == nullptr) {
+    port1->Close();
+    return;
+  }
+
   MessagePort::Entangle(port1, port2);
 
   args.This()->Set(context, env->port1_string(), port1->object())

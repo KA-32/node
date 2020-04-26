@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "node_main_instance.h"
 #include "node_internals.h"
 #include "node_options-inl.h"
@@ -34,7 +36,8 @@ NodeMainInstance::NodeMainInstance(Isolate* isolate,
       isolate_data_(nullptr),
       owns_isolate_(false),
       deserialize_mode_(false) {
-  isolate_data_.reset(new IsolateData(isolate_, event_loop, platform, nullptr));
+  isolate_data_ =
+      std::make_unique<IsolateData>(isolate_, event_loop, platform, nullptr);
 
   IsolateSettings misc;
   SetIsolateMiscHandlers(isolate_, misc);
@@ -76,11 +79,11 @@ NodeMainInstance::NodeMainInstance(
   deserialize_mode_ = per_isolate_data_indexes != nullptr;
   // If the indexes are not nullptr, we are not deserializing
   CHECK_IMPLIES(deserialize_mode_, params->external_references != nullptr);
-  isolate_data_.reset(new IsolateData(isolate_,
-                                      event_loop,
-                                      platform,
-                                      array_buffer_allocator_.get(),
-                                      per_isolate_data_indexes));
+  isolate_data_ = std::make_unique<IsolateData>(isolate_,
+                                                event_loop,
+                                                platform,
+                                                array_buffer_allocator_.get(),
+                                                per_isolate_data_indexes);
   IsolateSettings s;
   SetIsolateMiscHandlers(isolate_, s);
   if (!deserialize_mode_) {
@@ -109,21 +112,14 @@ int NodeMainInstance::Run() {
   HandleScope handle_scope(isolate_);
 
   int exit_code = 0;
-  std::unique_ptr<Environment> env = CreateMainEnvironment(&exit_code);
+  DeleteFnPtr<Environment, FreeEnvironment> env =
+      CreateMainEnvironment(&exit_code);
 
   CHECK_NOT_NULL(env);
   Context::Scope context_scope(env->context());
 
   if (exit_code == 0) {
-    {
-      InternalCallbackScope callback_scope(
-          env.get(),
-          Local<Object>(),
-          { 1, 0 },
-          InternalCallbackScope::kAllowEmptyResource |
-              InternalCallbackScope::kSkipAsyncHooks);
-      LoadEnvironment(env.get());
-    }
+    LoadEnvironment(env.get());
 
     env->set_trace_sync_io(env->options()->trace_sync_io);
 
@@ -156,10 +152,7 @@ int NodeMainInstance::Run() {
     exit_code = EmitExit(env.get());
   }
 
-  env->set_can_call_into_js(false);
-  env->stop_sub_worker_contexts();
   ResetStdio();
-  env->RunCleanup();
 
   // TODO(addaleax): Neither NODE_SHARED_MODE nor HAVE_INSPECTOR really
   // make sense here.
@@ -174,10 +167,6 @@ int NodeMainInstance::Run() {
   }
 #endif
 
-  RunAtExit(env.get());
-
-  per_process::v8_platform.DrainVMTasks(isolate_);
-
 #if defined(LEAK_SANITIZER)
   __lsan_do_leak_check();
 #endif
@@ -185,10 +174,8 @@ int NodeMainInstance::Run() {
   return exit_code;
 }
 
-// TODO(joyeecheung): align this with the CreateEnvironment exposed in node.h
-// and the environment creation routine in workers somehow.
-std::unique_ptr<Environment> NodeMainInstance::CreateMainEnvironment(
-    int* exit_code) {
+DeleteFnPtr<Environment, FreeEnvironment>
+NodeMainInstance::CreateMainEnvironment(int* exit_code) {
   *exit_code = 0;  // Reset the exit code to 0
 
   HandleScope handle_scope(isolate_);
@@ -213,27 +200,18 @@ std::unique_ptr<Environment> NodeMainInstance::CreateMainEnvironment(
   CHECK(!context.IsEmpty());
   Context::Scope context_scope(context);
 
-  std::unique_ptr<Environment> env = std::make_unique<Environment>(
+  DeleteFnPtr<Environment, FreeEnvironment> env { CreateEnvironment(
       isolate_data_.get(),
       context,
       args_,
       exec_args_,
-      static_cast<Environment::Flags>(Environment::kIsMainThread |
-                                      Environment::kOwnsProcessState |
-                                      Environment::kOwnsInspector));
-  env->InitializeLibuv(per_process::v8_is_profiling);
-  env->InitializeDiagnostics();
+      EnvironmentFlags::kDefaultFlags) };
 
-  // TODO(joyeecheung): when we snapshot the bootstrapped context,
-  // the inspector and diagnostics setup should after after deserialization.
-#if HAVE_INSPECTOR
-  *exit_code = env->InitializeInspector({});
-#endif
   if (*exit_code != 0) {
     return env;
   }
 
-  if (env->RunBootstrapping().IsEmpty()) {
+  if (env == nullptr) {
     *exit_code = 1;
   }
 

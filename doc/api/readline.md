@@ -293,7 +293,8 @@ added: v0.1.98
 
 The `rl.write()` method will write either `data` or a key sequence identified
 by `key` to the `output`. The `key` argument is supported only if `output` is
-a [TTY][] text terminal.
+a [TTY][] text terminal. See [TTY keybindings][] for a list of key
+combinations.
 
 If `key` is specified, `data` is ignored.
 
@@ -351,7 +352,7 @@ async function processLineByLine() {
 
 ### `rl.line`
 <!-- YAML
-added: 0.1.98
+added: v0.1.98
 -->
 
 * {string|undefined}
@@ -386,7 +387,7 @@ process.stdin.on('keypress', (c, k) => {
 
 ### `rl.cursor`
 <!-- YAML
-added: 0.1.98
+added: v0.1.98
 -->
 
 * {number|undefined}
@@ -455,6 +456,9 @@ the current position of the cursor down.
 <!-- YAML
 added: v0.1.98
 changes:
+  - version: v13.9.0
+    pr-url: https://github.com/nodejs/node/pull/31318
+    description: The `tabSize` option is supported now.
   - version: v8.3.0, 6.11.4
     pr-url: https://github.com/nodejs/node/pull/13497
     description: Remove max limit of `crlfDelay` option.
@@ -498,6 +502,8 @@ changes:
     can both form a complete key sequence using the input read so far and can
     take additional input to complete a longer key sequence).
     **Default:** `500`.
+  * `tabSize` {integer} The number of spaces a tab is equal to (minimum 1).
+    **Default:** `8`.
 
 The `readline.createInterface()` method creates a new `readline.Interface`
 instance.
@@ -722,6 +728,131 @@ const { createInterface } = require('readline');
 })();
 ```
 
+## TTY keybindings
+
+<table>
+  <tr>
+    <th>Keybindings</th>
+    <th>Description</th>
+    <th>Notes</th>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>shift</code> + <code>backspace</code></td>
+    <td>Delete line left</td>
+    <td>Doesn't work on Linux, Mac and Windows</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>shift</code> + <code>delete</code></td>
+    <td>Delete line right</td>
+    <td>Doesn't work on Linux and Mac</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>c</code></td>
+    <td>Emit <code>SIGINT</code> or close the readline instance</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>h</code></td>
+    <td>Delete left</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>d</code></td>
+    <td>Delete right or close the readline instance in case the current line is empty / EOF</td>
+    <td>Doesn't work on Windows</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>u</code></td>
+    <td>Delete from the current position to the line start</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>k</code></td>
+    <td>Delete from the current position to the end of line</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>a</code></td>
+    <td>Go to start of line</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>e</code></td>
+    <td>Go to to end of line</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>b</code></td>
+    <td>Back one character</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>f</code></td>
+    <td>Forward one character</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>l</code></td>
+    <td>Clear screen</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>n</code></td>
+    <td>Next history item</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>p</code></td>
+    <td>Previous history item</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>z</code></td>
+    <td>Moves running process into background. Type
+    <code>fg</code> and press <code>enter</code>
+    to return.</td>
+    <td>Doesn't work on Windows</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>w</code> or <code>ctrl</code>
+    + <code>backspace</code></td>
+    <td>Delete backwards to a word boundary</td>
+    <td><code>ctrl</code> + <code>backspace</code> Doesn't
+    work as expected on Windows</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>delete</code></td>
+    <td>Delete forward to a word boundary</td>
+    <td>Doesn't work on Mac</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>left</code> or
+    <code>meta</code> + <code>b</code></td>
+    <td>Word left</td>
+    <td><code>ctrl</code> + <code>left</code> Doesn't work
+    on Mac</td>
+  </tr>
+  <tr>
+    <td><code>ctrl</code> + <code>right</code> or
+    <code>meta</code> + <code>f</code></td>
+    <td>Word right</td>
+    <td><code>ctrl</code> + <code>right</code> Doesn't work
+    on Mac</td>
+  </tr>
+  <tr>
+    <td><code>meta</code> + <code>d</code> or <code>meta</code>
+    + <code>delete</code></td>
+    <td>Delete word right</td>
+    <td><code>meta</code> + <code>delete</code> Doesn't work
+    on windows</td>
+  </tr>
+  <tr>
+    <td><code>meta</code> + <code>backspace</code></td>
+    <td>Delete word left</td>
+    <td>Doesn't work on Mac</td>
+  </tr>
+</table>
+
 [`'SIGCONT'`]: readline.html#readline_event_sigcont
 [`'SIGTSTP'`]: readline.html#readline_event_sigtstp
 [`'line'`]: #readline_event_line
@@ -731,5 +862,6 @@ const { createInterface } = require('readline');
 [`rl.close()`]: #readline_rl_close
 [Readable]: stream.html#stream_readable_streams
 [TTY]: tty.html
+[TTY keybindings]: #readline_tty_keybindings
 [Writable]: stream.html#stream_writable_streams
 [reading files]: #readline_example_read_file_stream_line_by_line

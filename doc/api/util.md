@@ -4,9 +4,9 @@
 
 > Stability: 2 - Stable
 
-The `util` module is primarily designed to support the needs of Node.js' own
-internal APIs. However, many of the utilities are useful for application and
-module developers as well. It can be accessed using:
+The `util` module supports the needs of Node.js internal APIs. Many of the
+utilities are useful for application and module developers as well. To access
+it:
 
 ```js
 const util = require('util');
@@ -398,6 +398,9 @@ stream.write('With ES6');
 <!-- YAML
 added: v0.3.0
 changes:
+  - version: v13.13.0
+    pr-url: https://github.com/nodejs/node/pull/32392
+    description: The `maxStringLength` option is supported now.
   - version: v13.5.0
     pr-url: https://github.com/nodejs/node/pull/30768
     description: User defined prototype properties are inspected in case
@@ -483,6 +486,9 @@ changes:
     [`TypedArray`][], [`WeakMap`][] and [`WeakSet`][] elements to include when
     formatting. Set to `null` or `Infinity` to show all elements. Set to `0` or
     negative to show no elements. **Default:** `100`.
+  * `maxStringLength` {integer} Specifies the maximum number of characters to
+    include when formatting. Set to `null` or `Infinity` to show all elements.
+    Set to `0` or negative to show no characters. **Default:** `10000`.
   * `breakLength` {integer} The length at which input values are split across
     multiple lines. Set to `Infinity` to format the input as a single line
     (in combination with `compact` set to `true` or any number >= `1`).
@@ -995,10 +1001,31 @@ throw an error.
 ### `util.promisify.custom`
 <!-- YAML
 added: v8.0.0
+changes:
+  - version: v13.12.0
+    pr-url: https://github.com/nodejs/node/pull/31672
+    description: This is now defined as a shared symbol.
 -->
 
 * {symbol} that can be used to declare custom promisified variants of functions,
 see [Custom promisified functions][].
+
+In addition to being accessible through `util.promisify.custom`, this
+symbol is [registered globally][global symbol registry] and can be
+accessed in any environment as `Symbol.for('nodejs.util.promisify.custom')`.
+
+For example, with a function that takes in
+`(foo, onSuccessCallback, onErrorCallback)`:
+
+```js
+const kCustomPromisifiedSymbol = Symbol.for('nodejs.util.promisify.custom');
+
+doSomething[kCustomPromisifiedSymbol] = (foo) => {
+  return new Promise((resolve, reject) => {
+    doSomething(foo, resolve, reject);
+  });
+};
+```
 
 ## Class: `util.TextDecoder`
 <!-- YAML
@@ -1398,6 +1425,35 @@ raw C++ pointer (`void*`) for access from native code, and has no other
 properties. Such objects are created either by Node.js internals or native
 addons. In JavaScript, they are [frozen][`Object.freeze()`] objects with a
 `null` prototype.
+
+```c
+#include <js_native_api.h>
+#include <stdlib.h>
+napi_value result;
+static napi_value MyNapi(napi_env env, napi_callback_info info) {
+  int* raw = (int*) malloc(1024);
+  napi_status status = napi_create_external(env, (void*) raw, NULL, NULL, &result);
+  if (status != napi_ok) {
+    napi_throw_error(env, NULL, "napi_create_external failed");
+    return NULL;
+  }
+  return result;
+}
+...
+DECLARE_NAPI_PROPERTY("myNapi", MyNapi)
+...
+```
+
+```js
+const native = require('napi_addon.node');
+const data = native.myNapi();
+util.types.isExternal(data); // returns true
+util.types.isExternal(0); // returns false
+util.types.isExternal(new String('foo')); // returns false
+```
+
+For further information on `napi_create_external`, refer to
+[`napi_create_external()`][].
 
 ### `util.types.isFloat32Array(value)`
 <!-- YAML
@@ -1841,7 +1897,10 @@ util.types.isWeakSet(new WeakSet());  // Returns true
 ### `util.types.isWebAssemblyCompiledModule(value)`
 <!-- YAML
 added: v10.0.0
+deprecated: v14.0.0
 -->
+
+> Stability: 0 - Deprecated: Use `value instanceof WebAssembly.Module` instead.
 
 * `value` {any}
 * Returns: {boolean}
@@ -2358,5 +2417,6 @@ util.log('Timestamped message.');
 [default sort]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/sort
 [global symbol registry]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/for
 [list of deprecated APIS]: deprecations.html#deprecations_list_of_deprecated_apis
+[`napi_create_external()`]: n-api.html#n_api_napi_create_external
 [semantically incompatible]: https://github.com/nodejs/node/issues/4179
 [util.inspect.custom]: #util_util_inspect_custom

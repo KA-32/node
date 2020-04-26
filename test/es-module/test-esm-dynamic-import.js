@@ -42,9 +42,6 @@ function expectFsNamespace(result) {
 // For direct use of import expressions inside of CJS or ES modules, including
 // via eval, all kinds of specifiers should work without issue.
 (function testScriptOrModuleImport() {
-  common.expectWarning('ExperimentalWarning',
-                       'The ESM module loader is experimental.');
-
   // Importing another file, both direct & via eval
   // expectOkNamespace(import(relativePath));
   expectOkNamespace(eval(`import("${relativePath}")`));
@@ -55,11 +52,12 @@ function expectFsNamespace(result) {
   expectFsNamespace(import('fs'));
   expectFsNamespace(eval('import("fs")'));
   expectFsNamespace(eval('import("fs")'));
+  expectFsNamespace(import('nodejs:fs'));
 
+  expectModuleError(import('nodejs:unknown'),
+                    'ERR_UNKNOWN_BUILTIN_MODULE');
   expectModuleError(import('./not-an-existing-module.mjs'),
                     'ERR_MODULE_NOT_FOUND');
-  expectModuleError(import('node:fs'),
-                    'ERR_UNSUPPORTED_ESM_URL_SCHEME');
   expectModuleError(import('http://example.com/foo.js'),
                     'ERR_UNSUPPORTED_ESM_URL_SCHEME');
 })();

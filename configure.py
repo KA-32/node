@@ -89,6 +89,11 @@ parser.add_option('--debug',
     dest='debug',
     help='also build debug build')
 
+parser.add_option('--debug-node',
+    action='store_true',
+    dest='debug_node',
+    help='build the Node.js part of the binary with debugging symbols')
+
 parser.add_option('--dest-cpu',
     action='store',
     dest='dest_cpu',
@@ -295,6 +300,27 @@ shared_optgroup.add_option('--shared-zlib-libpath',
     action='store',
     dest='shared_zlib_libpath',
     help='a directory to search for the shared zlib DLL')
+
+shared_optgroup.add_option('--shared-brotli',
+    action='store_true',
+    dest='shared_brotli',
+    help='link to a shared brotli DLL instead of static linking')
+
+shared_optgroup.add_option('--shared-brotli-includes',
+    action='store',
+    dest='shared_brotli_includes',
+    help='directory containing brotli header files')
+
+shared_optgroup.add_option('--shared-brotli-libname',
+    action='store',
+    dest='shared_brotli_libname',
+    default='brotlidec,brotlienc',
+    help='alternative lib name to link to [default: %default]')
+
+shared_optgroup.add_option('--shared-brotli-libpath',
+    action='store',
+    dest='shared_brotli_libpath',
+    help='a directory to search for the shared brotli DLL')
 
 shared_optgroup.add_option('--shared-cares',
     action='store_true',
@@ -512,12 +538,12 @@ parser.add_option('--without-npm',
     dest='without_npm',
     help='do not install the bundled npm (package manager)')
 
+# Dummy option for backwards compatibility
 parser.add_option('--without-report',
     action='store_true',
-    dest='without_report',
-    help='build without report')
+    dest='unused_without_report',
+    help=optparse.SUPPRESS_HELP)
 
-# Dummy option for backwards compatibility
 parser.add_option('--with-snapshot',
     action='store_true',
     dest='unused_with_snapshot',
@@ -553,7 +579,7 @@ parser.add_option('--ninja',
 parser.add_option('--enable-asan',
     action='store_true',
     dest='enable_asan',
-    help='build with asan')
+    help='compile for Address Sanitizer to find memory bugs')
 
 parser.add_option('--enable-static',
     action='store_true',
@@ -608,6 +634,18 @@ parser.add_option('--v8-non-optimized-debug',
     dest='v8_non_optimized_debug',
     default=False,
     help='compile V8 with minimal optimizations and with runtime checks')
+
+parser.add_option('--v8-with-dchecks',
+    action='store_true',
+    dest='v8_with_dchecks',
+    default=False,
+    help='compile V8 with debug checks and runtime debugging features enabled')
+
+parser.add_option('--node-builtin-modules-path',
+    action='store',
+    dest='node_builtin_modules_path',
+    default=False,
+    help='node will load builtin modules from disk instead of from binary')
 
 # Create compile_commands.json in out/Debug and out/Release.
 parser.add_option('-C',
@@ -669,7 +707,11 @@ def pkg_config(pkg):
   retval = ()
   for flag in ['--libs-only-l', '--cflags-only-I',
                '--libs-only-L', '--modversion']:
-    args += [flag, pkg]
+    args += [flag]
+    if isinstance(pkg, list):
+      args += pkg
+    else:
+      args += [pkg]
     try:
       proc = subprocess.Popen(shlex.split(pkg_config) + args,
                               stdout=subprocess.PIPE)
@@ -790,13 +832,19 @@ def check_compiler(o):
     return
 
   ok, is_clang, clang_version, gcc_version = try_check_compiler(CXX, 'c++')
+  version_str = ".".join(map(str, clang_version if is_clang else gcc_version))
+  print_verbose('Detected %sC++ compiler (CXX=%s) version: %s' %
+                ('clang ' if is_clang else '', CXX, version_str))
   if not ok:
     warn('failed to autodetect C++ compiler version (CXX=%s)' % CXX)
   elif clang_version < (8, 0, 0) if is_clang else gcc_version < (6, 3, 0):
     warn('C++ compiler (CXX=%s, %s) too old, need g++ 6.3.0 or clang++ 8.0.0' %
-      (CXX, ".".join(map(str, clang_version if is_clang else gcc_version))))
+         (CXX, version_str))
 
   ok, is_clang, clang_version, gcc_version = try_check_compiler(CC, 'c')
+  version_str = ".".join(map(str, clang_version if is_clang else gcc_version))
+  print_verbose('Detected %sC compiler (CC=%s) version: %s' %
+                ('clang ' if is_clang else '', CC, version_str))
   if not ok:
     warn('failed to autodetect C compiler version (CC=%s)' % CC)
   elif not is_clang and gcc_version < (4, 2, 0):
@@ -804,7 +852,7 @@ def check_compiler(o):
     # do for the C bits.  However, we might as well encourage people to upgrade
     # to a version that is not completely ancient.
     warn('C compiler (CC=%s, %s) too old, need gcc 4.2 or clang 3.2' %
-      (CC, ".".join(map(str, gcc_version))))
+         (CC, version_str))
 
   o['variables']['llvm_version'] = get_llvm_version(CC) if is_clang else '0.0'
 
@@ -968,7 +1016,7 @@ def configure_node(o):
     o['variables']['OS'] = 'android'
   o['variables']['node_prefix'] = options.prefix
   o['variables']['node_install_npm'] = b(not options.without_npm)
-  o['variables']['node_report'] = b(not options.without_report)
+  o['variables']['debug_node'] = b(options.debug_node)
   o['default_configuration'] = 'Debug' if options.debug else 'Release'
 
   host_arch = host_arch_win() if os.name == 'nt' else host_arch_cc()
@@ -992,18 +1040,18 @@ def configure_node(o):
 
   o['variables']['want_separate_host_toolset'] = int(cross_compiling)
 
-  if not options.without_node_snapshot:
+  if options.without_node_snapshot or options.node_builtin_modules_path:
+    o['variables']['node_use_node_snapshot'] = 'false'
+  else:
     o['variables']['node_use_node_snapshot'] = b(
       not cross_compiling and not options.shared)
-  else:
-    o['variables']['node_use_node_snapshot'] = 'false'
 
-  if not options.without_node_code_cache:
+  if options.without_node_code_cache or options.node_builtin_modules_path:
+    o['variables']['node_use_node_code_cache'] = 'false'
+  else:
     # TODO(refack): fix this when implementing embedded code-cache when cross-compiling.
     o['variables']['node_use_node_code_cache'] = b(
       not cross_compiling and not options.shared)
-  else:
-    o['variables']['node_use_node_code_cache'] = 'false'
 
   if target_arch == 'arm':
     configure_arm(o)
@@ -1145,6 +1193,10 @@ def configure_node(o):
   else:
     o['variables']['node_target_type'] = 'executable'
 
+  if options.node_builtin_modules_path:
+    print('Warning! Loading builtin modules from disk is for development')
+    o['variables']['node_builtin_modules_path'] = options.node_builtin_modules_path
+
 def configure_napi(output):
   version = getnapibuildversion.get_napi_version()
   output['variables']['napi_build_version'] = version
@@ -1189,6 +1241,7 @@ def configure_v8(o):
   o['variables']['v8_enable_gdbjit'] = 1 if options.gdb else 0
   o['variables']['v8_no_strict_aliasing'] = 1  # Work around compiler bugs.
   o['variables']['v8_optimized_debug'] = 0 if options.v8_non_optimized_debug else 1
+  o['variables']['dcheck_always_on'] = 1 if options.v8_with_dchecks else 0
   o['variables']['v8_random_seed'] = 0  # Use a random seed for hash tables.
   o['variables']['v8_promise_internal_field_count'] = 1 # Add internal field to promises for async hooks.
   o['variables']['v8_use_siphash'] = 0 if options.without_siphash else 1
@@ -1672,6 +1725,7 @@ configure_napi(output)
 configure_library('zlib', output)
 configure_library('http_parser', output)
 configure_library('libuv', output)
+configure_library('brotli', output, pkgname=['libbrotlidec', 'libbrotlienc'])
 configure_library('cares', output, pkgname='libcares')
 configure_library('nghttp2', output, pkgname='libnghttp2')
 configure_v8(output)

@@ -88,7 +88,7 @@ changes:
     This option is part of the experimental modules API, and should not be
     considered stable.
     * `specifier` {string} specifier passed to `import()`
-    * `module` {vm.Module}
+    * `script` {vm.Script}
     * Returns: {Module Namespace Object|vm.Module} Returning a `vm.Module` is
       recommended in order to take advantage of error tracking, and to avoid
       issues with namespaces that contain `then` function exports.
@@ -106,8 +106,8 @@ added: v10.6.0
 
 * Returns: {Buffer}
 
-Creates a code cache that can be used with the Script constructor's
-`cachedData` option. Returns a Buffer. This method may be called at any
+Creates a code cache that can be used with the `Script` constructor's
+`cachedData` option. Returns a `Buffer`. This method may be called at any
 time and any number of times.
 
 ```js
@@ -175,9 +175,8 @@ for (let i = 0; i < 10; ++i) {
   script.runInContext(context);
 }
 
-console.log(util.inspect(context));
-
-// { animal: 'cat', count: 12, name: 'kitty' }
+console.log(context);
+// Prints: { animal: 'cat', count: 12, name: 'kitty' }
 ```
 
 Using the `timeout` or `breakOnSigint` options will result in new event loops
@@ -246,9 +245,8 @@ contexts.forEach((context) => {
   script.runInNewContext(context);
 });
 
-console.log(util.inspect(contexts));
-
-// [{ globalVar: 'set' }, { globalVar: 'set' }, { globalVar: 'set' }]
+console.log(contexts);
+// Prints: [{ globalVar: 'set' }, { globalVar: 'set' }, { globalVar: 'set' }]
 ```
 
 ### `script.runInThisContext([options])`
@@ -297,6 +295,56 @@ console.log(globalVar);
 // 1000
 ```
 
+## `vm.measureMemory([options])`
+
+<!-- YAML
+added: v13.10.0
+-->
+
+> Stability: 1 - Experimental
+
+Measure the memory known to V8 and used by the current execution context
+or a specified context.
+
+* `options` {Object} Optional.
+  * `mode` {string} Either `'summary'` or `'detailed'`.
+    **Default:** `'summary'`
+  * `context` {Object} Optional. A [contextified][] object returned
+    by `vm.createContext()`. If not specified, measure the memory
+    usage of the current context where `vm.measureMemory()` is invoked.
+* Returns: {Promise} If the memory is successfully measured the promise will
+  resolve with an object containing information about the memory usage.
+
+The format of the object that the returned Promise may resolve with is
+specific to the V8 engine and may change from one version of V8 to the next.
+
+The returned result is different from the statistics returned by
+`v8.getHeapSpaceStatistics()` in that `vm.measureMemory()` measures
+the memory reachable by V8 from a specific context, while
+`v8.getHeapSpaceStatistics()` measures the memory used by an instance
+of V8 engine, which can switch among multiple contexts that reference
+objects in the heap of one engine.
+
+```js
+const vm = require('vm');
+// Measure the memory used by the current context and return the result
+// in summary.
+vm.measureMemory({ mode: 'summary' })
+  // Is the same as vm.measureMemory()
+  .then((result) => {
+    // The current format is:
+    // { total: { jsMemoryEstimate: 2211728, jsMemoryRange: [ 0, 2211728 ] } }
+    console.log(result);
+  });
+
+const context = vm.createContext({});
+vm.measureMemory({ mode: 'detailed' }, context)
+  .then((result) => {
+    // At the moment the detailed format is the same as the summary one.
+    console.log(result);
+  });
+```
+
 ## Class: `vm.Module`
 <!-- YAML
 added: v13.0.0
@@ -314,9 +362,8 @@ specification.
 
 Unlike `vm.Script` however, every `vm.Module` object is bound to a context from
 its creation. Operations on `vm.Module` objects are intrinsically asynchronous,
-in contrast with the synchronous nature of `vm.Script` objects. With the help
-of async functions, however, manipulating `vm.Module` objects is fairly
-straightforward.
+in contrast with the synchronous nature of `vm.Script` objects. The use of
+'async' functions can help with manipulating `vm.Module` objects.
 
 Using a `vm.Module` object requires three distinct steps: creation/parsing,
 linking, and evaluation. These three steps are illustrated in the following
@@ -566,6 +613,10 @@ defined in the ECMAScript specification.
   * `identifier` {string} String used in stack traces.
     **Default:** `'vm:module(i)'` where `i` is a context-specific ascending
     index.
+  * `cachedData` {Buffer|TypedArray|DataView} Provides an optional `Buffer` or
+    `TypedArray`, or `DataView` with V8's code cache data for the supplied
+     source. The `code` must be the same as the module from which this
+     `cachedData` was created.
   * `context` {Object} The [contextified][] object as returned by the
     `vm.createContext()` method, to compile and evaluate this `Module` in.
   * `lineOffset` {integer} Specifies the line number offset that is displayed
@@ -619,6 +670,28 @@ const contextifiedObject = vm.createContext({ secret: 42 });
   // above with
   //     meta.prop = vm.runInContext('{}', contextifiedObject);
 })();
+```
+
+### `sourceTextModule.createCachedData()`
+<!-- YAML
+added: v13.7.0
+-->
+
+* Returns: {Buffer}
+
+Creates a code cache that can be used with the `SourceTextModule` constructor's
+`cachedData` option. Returns a `Buffer`. This method may be called any number
+of times before the module has been evaluated.
+
+```js
+// Create an initial module
+const module = new vm.SourceTextModule('const a = 1;');
+
+// Create cached data from this module
+const cachedData = module.createCachedData();
+
+// Create a new module using the cached data. The code must be the same.
+const module2 = new vm.SourceTextModule('const a = 1;', { cachedData });
 ```
 
 ## Class: `vm.SyntheticModule`
@@ -700,6 +773,10 @@ const vm = require('vm');
 ## `vm.compileFunction(code[, params[, options]])`
 <!-- YAML
 added: v10.10.0
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/32985
+    description: The `importModuleDynamically` option is now supported.
 -->
 
 * `code` {string} The body of the function to compile.
@@ -722,6 +799,16 @@ added: v10.10.0
   * `contextExtensions` {Object[]} An array containing a collection of context
     extensions (objects wrapping the current scope) to be applied while
     compiling. **Default:** `[]`.
+  * `importModuleDynamically` {Function} Called during evaluation of this module
+    when `import()` is called. If this option is not specified, calls to
+    `import()` will reject with [`ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`][].
+    This option is part of the experimental modules API, and should not be
+    considered stable.
+    * `specifier` {string} specifier passed to `import()`
+    * `function` {Function}
+    * Returns: {Module Namespace Object|vm.Module} Returning a `vm.Module` is
+      recommended in order to take advantage of error tracking, and to avoid
+      issues with namespaces that contain `then` function exports.
 * Returns: {Function}
 
 Compiles the given code into the provided context (if no context is
@@ -778,9 +865,11 @@ vm.createContext(context);
 
 vm.runInContext('globalVar *= 2;', context);
 
-console.log(util.inspect(context)); // { globalVar: 2 }
+console.log(context);
+// Prints: { globalVar: 2 }
 
-console.log(util.inspect(globalVar)); // 3
+console.log(global.globalVar);
+// Prints: 3
 ```
 
 If `contextObject` is omitted (or passed explicitly as `undefined`), a new,
@@ -880,9 +969,8 @@ vm.createContext(contextObject);
 for (let i = 0; i < 10; ++i) {
   vm.runInContext('globalVar *= 2;', contextObject);
 }
-console.log(util.inspect(contextObject));
-
-// { globalVar: 1024 }
+console.log(contextObject);
+// Prints: { globalVar: 1024 }
 ```
 
 ## `vm.runInNewContext(code[, contextObject[, options]])`
@@ -977,9 +1065,8 @@ const contextObject = {
 };
 
 vm.runInNewContext('count += 1; name = "kitty"', contextObject);
-console.log(util.inspect(contextObject));
-
-// { animal: 'cat', count: 3, name: 'kitty' }
+console.log(contextObject);
+// Prints: { animal: 'cat', count: 3, name: 'kitty' }
 ```
 
 ## `vm.runInThisContext(code[, options])`
@@ -1049,15 +1136,12 @@ const vm = require('vm');
 let localVar = 'initial value';
 
 const vmResult = vm.runInThisContext('localVar = "vm";');
-console.log('vmResult:', vmResult);
-console.log('localVar:', localVar);
+console.log(`vmResult: '${vmResult}', localVar: '${localVar}'`);
+// Prints: vmResult: 'vm', localVar: 'initial value'
 
 const evalResult = eval('localVar = "eval";');
-console.log('evalResult:', evalResult);
-console.log('localVar:', localVar);
-
-// vmResult: 'vm', localVar: 'initial value'
-// evalResult: 'eval', localVar: 'eval'
+console.log(`evalResult: '${evalResult}', localVar: '${localVar}'`);
+// Prints: evalResult: 'eval', localVar: 'eval'
 ```
 
 Because `vm.runInThisContext()` does not have access to the local scope,

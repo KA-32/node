@@ -62,6 +62,7 @@ using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
 using v8::Nothing;
+using v8::Number;
 using v8::Object;
 using v8::String;
 using v8::Uint32;
@@ -162,7 +163,6 @@ void CallbackInfo::WeakCallback(
     const WeakCallbackInfo<CallbackInfo>& data) {
   CallbackInfo* self = data.GetParameter();
   self->WeakCallback(data.GetIsolate());
-  delete self;
 }
 
 
@@ -170,6 +170,7 @@ void CallbackInfo::WeakCallback(Isolate* isolate) {
   callback_(data_, hint_);
   int64_t change_in_bytes = -static_cast<int64_t>(sizeof(*this));
   isolate->AdjustAmountOfExternalAllocatedMemory(change_in_bytes);
+  delete this;
 }
 
 
@@ -416,9 +417,6 @@ MaybeLocal<Object> New(Environment* env,
                                    nullptr);
   Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(),
                                            std::move(backing));
-  // TODO(thangktran): drop this check when V8 is pumped to 8.0 .
-  if (!ab->IsExternal())
-    ab->Externalize(ab->GetBackingStore());
   if (ab->SetPrivate(env->context(),
                      env->arraybuffer_untransferable_private_symbol(),
                      True(env->isolate())).IsNothing()) {
@@ -589,10 +587,11 @@ void Fill(const FunctionCallbackInfo<Value>& args) {
   THROW_AND_RETURN_UNLESS_BUFFER(env, args[0]);
   SPREAD_BUFFER_ARG(args[0], ts_obj);
 
-  uint32_t start;
-  if (!args[2]->Uint32Value(ctx).To(&start)) return;
-  uint32_t end;
-  if (!args[3]->Uint32Value(ctx).To(&end)) return;
+  size_t start;
+  THROW_AND_RETURN_IF_OOB(ParseArrayIndex(env, args[2], 0, &start));
+  size_t end;
+  THROW_AND_RETURN_IF_OOB(ParseArrayIndex(env, args[3], 0, &end));
+
   size_t fill_length = end - start;
   Local<String> str_obj;
   size_t str_length;
@@ -1178,7 +1177,7 @@ void Initialize(Local<Object> target,
 
   target->Set(env->context(),
               FIXED_ONE_BYTE_STRING(env->isolate(), "kMaxLength"),
-              Integer::NewFromUnsigned(env->isolate(), kMaxLength)).Check();
+              Number::New(env->isolate(), kMaxLength)).Check();
 
   target->Set(env->context(),
               FIXED_ONE_BYTE_STRING(env->isolate(), "kStringMaxLength"),
@@ -1210,9 +1209,6 @@ void Initialize(Local<Object> target,
                                    nullptr);
     Local<ArrayBuffer> array_buffer =
         ArrayBuffer::New(env->isolate(), std::move(backing));
-    // TODO(thangktran): drop this check when V8 is pumped to 8.0 .
-    if (!array_buffer->IsExternal())
-      array_buffer->Externalize(array_buffer->GetBackingStore());
     array_buffer->SetPrivate(
         env->context(),
         env->arraybuffer_untransferable_private_symbol(),

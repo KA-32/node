@@ -17,9 +17,12 @@ const obs = new PerformanceObserver((items) => {
   performance.clearMarks();
 });
 obs.observe({ entryTypes: ['measure'] });
+performance.measure('Start to Now');
 
 performance.mark('A');
 doSomeLongRunningProcess(() => {
+  performance.measure('A to Now', 'A');
+
   performance.mark('B');
   performance.measure('A to B', 'A', 'B');
 });
@@ -53,14 +56,18 @@ Creates a new `PerformanceMark` entry in the Performance Timeline. A
 `performanceEntry.duration` is always `0`. Performance marks are used
 to mark specific significant moments in the Performance Timeline.
 
-### `performance.measure(name, startMark, endMark)`
+### `performance.measure(name[, startMark[, endMark]])`
 <!-- YAML
 added: v8.5.0
+changes:
+  - version: v13.13.0
+    pr-url: https://github.com/nodejs/node/pull/32651
+    description: Make `startMark` and `endMark` parameters optional.
 -->
 
 * `name` {string}
-* `startMark` {string}
-* `endMark` {string}
+* `startMark` {string} Optional.
+* `endMark` {string} Optional.
 
 Creates a new `PerformanceMeasure` entry in the Performance Timeline. A
 `PerformanceMeasure` is a subclass of `PerformanceEntry` whose
@@ -73,9 +80,10 @@ Performance Timeline, or *may* identify any of the timestamp properties
 provided by the `PerformanceNodeTiming` class. If the named `startMark` does
 not exist, then `startMark` is set to [`timeOrigin`][] by default.
 
-The `endMark` argument must identify any *existing* `PerformanceMark` in the
-Performance Timeline or any of the timestamp properties provided by the
-`PerformanceNodeTiming` class. If the named `endMark` does not exist, an
+The optional `endMark` argument must identify any *existing* `PerformanceMark`
+in the Performance Timeline or any of the timestamp properties provided by the
+`PerformanceNodeTiming` class. `endMark` will be `performance.now()`
+if no parameter is passed, otherwise if the named `endMark` does not exist, an
 error will be thrown.
 
 ### `performance.nodeTiming`
@@ -200,6 +208,25 @@ The value may be one of:
 * `perf_hooks.constants.NODE_PERFORMANCE_GC_MINOR`
 * `perf_hooks.constants.NODE_PERFORMANCE_GC_INCREMENTAL`
 * `perf_hooks.constants.NODE_PERFORMANCE_GC_WEAKCB`
+
+### performanceEntry.flags
+<!-- YAML
+added: v13.9.0
+-->
+
+* {number}
+
+When `performanceEntry.entryType` is equal to `'gc'`, the `performance.flags`
+property contains additional information about garbage collection operation.
+The value may be one of:
+
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_NO`
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_CONSTRUCT_RETAINED`
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_FORCED`
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_SYNCHRONOUS_PHANTOM_PROCESSING`
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_ALL_AVAILABLE_GARBAGE`
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_ALL_EXTERNAL_MEMORY`
+* `perf_hooks.constants.NODE_PERFORMANCE_GC_FLAGS_SCHEDULE_IDLE`
 
 ## Class: `PerformanceNodeTiming extends PerformanceEntry`
 <!-- YAML

@@ -9,7 +9,7 @@ To use the HTTP server and client one must `require('http')`.
 The HTTP interfaces in Node.js are designed to support many features
 of the protocol which have been traditionally difficult to use.
 In particular, large, possibly chunk-encoded, messages. The interface is
-careful to never buffer entire requests or responses — the
+careful to never buffer entire requests or responses, so the
 user is able to stream data.
 
 HTTP message headers are represented by an object like this:
@@ -25,7 +25,7 @@ HTTP message headers are represented by an object like this:
 
 Keys are lowercased. Values are not modified.
 
-In order to support the full spectrum of possible HTTP applications, Node.js's
+In order to support the full spectrum of possible HTTP applications, the Node.js
 HTTP API is very low-level. It deals with stream handling and message
 parsing only. It parses a message into headers and body but it does not
 parse the actual headers or the body.
@@ -238,6 +238,9 @@ added: v0.11.4
 
 An object which contains arrays of sockets currently awaiting use by
 the agent when `keepAlive` is enabled. Do not modify.
+
+Sockets in the `freeSockets` list will be automatically destroyed and
+removed from the array on `'timeout'`.
 
 ### `agent.getName(options)`
 <!-- YAML
@@ -882,7 +885,7 @@ added: v0.1.29
 
 Sends a chunk of the body. By calling this method
 many times, a request body can be sent to a
-server — in that case it is suggested to use the
+server. In that case, it is suggested to use the
 `['Transfer-Encoding', 'chunked']` header line when
 creating the request.
 
@@ -1214,7 +1217,7 @@ added: v0.1.17
 
 * Extends: {Stream}
 
-This object is created internally by an HTTP server — not by the user. It is
+This object is created internally by an HTTP server, not by the user. It is
 passed as the second parameter to the [`'request'`][] event.
 
 ### Event: `'close'`
@@ -1710,12 +1713,10 @@ const server = http.createServer((req, res) => {
 });
 ```
 
-`Content-Length` is given in bytes not characters. The above example
-works because the string `'hello world'` contains only single byte characters.
-If the body contains higher coded characters then `Buffer.byteLength()`
-should be used to determine the number of bytes in a given encoding.
-And Node.js does not check whether `Content-Length` and the length of the body
-which has been transmitted are equal or not.
+`Content-Length` is given in bytes, not characters. Use
+[`Buffer.byteLength()`][] to determine the length of the body in bytes. Node.js
+does not check whether `Content-Length` and the length of the body which has
+been transmitted are equal or not.
 
 Attempting to set a header field name or value that contains invalid characters
 will result in a [`TypeError`][] being thrown.
@@ -1990,7 +1991,7 @@ When `request.url` is `'/status?name=ryan'` and
 
 ```console
 $ node
-> new URL(request.url, request.headers.host)
+> new URL(request.url, `http://${request.headers.host}`)
 URL {
   href: 'http://localhost:3000/status?name=ryan',
   origin: 'http://localhost:3000',
@@ -2031,6 +2032,9 @@ Found'`.
 <!-- YAML
 added: v0.1.13
 changes:
+  - version: v13.8.0
+    pr-url: https://github.com/nodejs/node/pull/31448
+    description: The `insecureHTTPParser` option is supported now.
   - version: v13.3.0
     pr-url: https://github.com/nodejs/node/pull/30570
     description: The `maxHeaderSize` option is supported now.
@@ -2046,10 +2050,14 @@ changes:
   * `ServerResponse` {http.ServerResponse} Specifies the `ServerResponse` class
     to be used. Useful for extending the original `ServerResponse`. **Default:**
     `ServerResponse`.
+  * `insecureHTTPParser` {boolean} Use an insecure HTTP parser that accepts
+    invalid HTTP headers when `true`. Using the insecure parser should be
+    avoided. See [`--insecure-http-parser`][] for more information.
+    **Default:** `false`
   * `maxHeaderSize` {number} Optionally overrides the value of
     [`--max-http-header-size`][] for requests received by this server, i.e.
     the maximum length of request headers in bytes.
-    **Default:** 8192 (8KB).
+    **Default:** 16384 (16KB).
 * `requestListener` {Function}
 
 * Returns: {http.Server}
@@ -2155,6 +2163,9 @@ This can be overridden for servers and client requests by passing the
 <!-- YAML
 added: v0.3.6
 changes:
+  - version: v13.8.0
+    pr-url: https://github.com/nodejs/node/pull/31448
+    description: The `insecureHTTPParser` option is supported now.
   - version: v13.3.0
     pr-url: https://github.com/nodejs/node/pull/30570
     description: The `maxHeaderSize` option is supported now.
@@ -2191,12 +2202,16 @@ changes:
     request to. **Default:** `'localhost'`.
   * `hostname` {string} Alias for `host`. To support [`url.parse()`][],
     `hostname` will be used if both `host` and `hostname` are specified.
+  * `insecureHTTPParser` {boolean} Use an insecure HTTP parser that accepts
+    invalid HTTP headers when `true`. Using the insecure parser should be
+    avoided. See [`--insecure-http-parser`][] for more information.
+    **Default:** `false`
   * `localAddress` {string} Local interface to bind for network connections.
   * `lookup` {Function} Custom lookup function. **Default:** [`dns.lookup()`][].
   * `maxHeaderSize` {number} Optionally overrides the value of
     [`--max-http-header-size`][] for requests received from the server, i.e.
     the maximum length of response headers in bytes.
-    **Default:** 8192 (8KB).
+    **Default:** 16384 (16KB).
   * `method` {string} A string specifying the HTTP request method. **Default:**
     `'GET'`.
   * `path` {string} Request path. Should include query string if any.
@@ -2364,12 +2379,14 @@ will be emitted in the following order:
 Setting the `timeout` option or using the `setTimeout()` function will
 not abort the request or do anything besides add a `'timeout'` event.
 
+[`--insecure-http-parser`]: cli.html#cli_insecure_http_parser
 [`--max-http-header-size`]: cli.html#cli_max_http_header_size_size
 [`'checkContinue'`]: #http_event_checkcontinue
 [`'request'`]: #http_event_request
 [`'response'`]: #http_event_response
 [`'upgrade'`]: #http_event_upgrade
 [`Agent`]: #http_class_http_agent
+[`Buffer.byteLength()`]: buffer.html#buffer_class_method_buffer_bytelength_string_encoding
 [`Duplex`]: stream.html#stream_class_stream_duplex
 [`TypeError`]: errors.html#errors_class_typeerror
 [`URL`]: url.html#url_the_whatwg_url_api

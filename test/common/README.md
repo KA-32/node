@@ -68,6 +68,13 @@ sure no unexpected rejections occur, because currently they result in silent
 failures. However, it is useful in some rare cases to disable it, for example if
 the `unhandledRejection` hook is directly used by the test.
 
+### `enoughTestCpu`
+
+* [&lt;boolean>][]
+
+Indicates if there is more than 1 CPU or that the single CPU has a speed of at
+least 1 GHz.
+
 ### `enoughTestMem`
 
 * [&lt;boolean>][]
@@ -569,6 +576,10 @@ If set, `NODE_COMMON_PORT`'s value overrides the `common.PORT` default value of
 ### `NODE_SKIP_FLAG_CHECK`
 
 If set, command line arguments passed to individual tests are not validated.
+
+### `NODE_SKIP_CRYPTO`
+
+If set, crypto tests are skipped.
 
 ### `NODE_TEST_KNOWN_GLOBALS`
 

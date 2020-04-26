@@ -18,7 +18,6 @@ const defaultHistoryPath = path.join(tmpdir.path, '.node_repl_history');
 // Create an input stream specialized for testing an array of actions
 class ActionStream extends stream.Stream {
   run(data) {
-    let reallyWait = true;
     const _iter = data[Symbol.iterator]();
     const doAction = () => {
       const next = _iter.next();
@@ -34,12 +33,7 @@ class ActionStream extends stream.Stream {
       } else {
         this.emit('data', `${action}`);
       }
-      if (action === WAIT && reallyWait) {
-        setTimeout(doAction, common.platformTimeout(50));
-        reallyWait = false;
-      } else {
-        setImmediate(doAction);
-      }
+      setImmediate(doAction);
     };
     doAction();
   }
@@ -66,6 +60,8 @@ const prompt = '> ';
 const WAIT = '€';
 
 const prev = process.features.inspector;
+
+let completions = 0;
 
 const tests = [
   { // Creates few history to navigate for
@@ -157,7 +153,7 @@ const tests = [
     env: { NODE_REPL_HISTORY: defaultHistoryPath },
     skip: !process.features.inspector,
     test: [
-      // あ is a fill width character with a length of one.
+      // あ is a full width character with a length of one.
       // 🐕 is a full width character with a length of two.
       // 𐐷 is a half width character with the length of two.
       // '\u0301', '0x200D', '\u200E' are zero width characters.
@@ -254,7 +250,7 @@ const tests = [
       // 360 % 250 + 2 === 112 (+1)
       `${prompt}${'veryLongName'.repeat(30)}`, '\x1B[113G',
       // "// 'I should be previewed'".length + 86 === 112 (+1)
-      "\n// 'I should be previewed'", '\x1B[86C\x1B[1A',
+      "\n// 'I should be previewed'", '\x1B[113G', '\x1B[1A',
       // Preview cleanup
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       // 4. WORD LEFT
@@ -263,51 +259,51 @@ const tests = [
       '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       `${prompt}${'veryLongName'.repeat(30)}`, '\x1B[3G', '\x1B[1A',
-      '\x1B[1B', "\n// 'I should be previewed'", '\x1B[24D\x1B[2A',
+      '\x1B[1B', "\n// 'I should be previewed'", '\x1B[3G', '\x1B[2A',
       // Preview cleanup
       '\x1B[2B', '\x1B[2K', '\x1B[2A',
       // 5. UP
       '\x1B[1G', '\x1B[0J',
       `${prompt}e`, '\x1B[4G',
       // '// RangeError: visible'.length - 19 === 3 (+1)
-      '\n// RangeError: visible', '\x1B[19D\x1B[1A',
+      '\n// RangeError: visible', '\x1B[4G', '\x1B[1A',
       // Preview cleanup
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       // 6. Backspace
       '\x1B[1G', '\x1B[0J',
       '> ', '\x1B[3G', 'x', '1',
       `\n// '${'あ'.repeat(124)}'`,
-      '\x1B[1C\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       '> x', '\x1B[4G', '2',
       `\n// '${'🐕'.repeat(124)}'`,
-      '\x1B[1C\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       '> x', '\x1B[4G', '3',
       `\n// '${'𐐷'.repeat(248)}'`,
-      '\x1B[1C\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       '> x', '\x1B[4G', '4',
       `\n// 'a${'\u0301'.repeat(1000)}'`,
-      '\x1B[2D\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       '> ', '\x1B[3G', 'y', '1',
       `\n// '${'あ'.repeat(121)}...`,
-      '\x1B[245D\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       '> y', '\x1B[4G', '2',
       `\n// '${'🐕'.repeat(121)}...`,
-      '\x1B[245D\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\x1B[1G', '\x1B[0J',
       '> y', '\x1B[4G', '3',
       `\n// '${'𐐷'.repeat(242)}...`,
-      '\x1B[245D\x1B[1A',
+      '\x1B[5G', '\x1B[1A',
       '\x1B[1B', '\x1B[2K', '\x1B[1A',
       '\r\n',
       '\x1B[1G', '\x1B[0J',
@@ -321,7 +317,8 @@ const tests = [
     showEscapeCodes: true,
     skip: !process.features.inspector,
     test: [
-      'fun',
+      'fu',
+      'n',
       RIGHT,
       BACKSPACE,
       LEFT,
@@ -419,8 +416,8 @@ const tests = [
       '[', ' ', ']',
       '\n// []', '\n// []', '\n// []',
       '> util.inspect.replDefaults.showHidden',
-      '\n// false', ' ', '\n// false',
-      '=', ' ', 't', 'r', 'u', ' // e', 'e',
+      '\n// false',
+      ' ', '=', ' ', 't', 'r', 'u', 'e',
       'true\n',
       '> ', '[', ' ', ']',
       '\n// [ [length]: 0 ]',
@@ -434,12 +431,11 @@ const tests = [
     env: { NODE_REPL_HISTORY: defaultHistoryPath },
     completer(line, callback) {
       if (line.endsWith(WAIT)) {
-        setTimeout(
-          callback,
-          common.platformTimeout(40),
-          null,
-          [[`${WAIT}WOW`], line]
-        );
+        if (completions++ === 0) {
+          callback(null, [[`${WAIT}WOW`], line]);
+        } else {
+          setTimeout(callback, 1000, null, [[`${WAIT}WOW`], line]).unref();
+        }
       } else {
         callback(null, [[' Always visible'], line]);
       }

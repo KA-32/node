@@ -545,7 +545,7 @@ called:
 added: v0.5.3
 -->
 
-* `hostname` {string} A SNI hostname or wildcard (e.g. `'*'`)
+* `hostname` {string} A SNI host name or wildcard (e.g. `'*'`)
 * `context` {Object} An object containing any of the possible properties
   from the [`tls.createSecureContext()`][] `options` arguments (e.g. `key`,
   `cert`, `ca`, etc).
@@ -1094,6 +1094,39 @@ See
 [SSL_get_shared_sigalgs](https://www.openssl.org/docs/man1.1.1/man3/SSL_get_shared_sigalgs.html)
 for more information.
 
+### `tlsSocket.exportKeyingMaterial(length, label[, context])`
+<!-- YAML
+added: v13.10.0
+-->
+
+* `length` {number} number of bytes to retrieve from keying material
+* `label` {string} an application specific label, typically this will be a
+value from the
+[IANA Exporter Label Registry](https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#exporter-labels).
+* `context` {Buffer} Optionally provide a context.
+
+* Returns: {Buffer} requested bytes of the keying material
+
+Keying material is used for validations to prevent different kind of attacks in
+network protocols, for example in the specifications of IEEE 802.1X.
+
+Example
+
+```js
+const keyingMaterial = tlsSocket.exportKeyingMaterial(
+  128,
+  'client finished');
+
+/**
+ Example return value of keyingMaterial:
+ <Buffer 76 26 af 99 c5 56 8e 42 09 91 ef 9f 93 cb ad 6c 7b 65 f8 53 f1 d8 d9
+    12 5a 33 b8 b5 25 df 7b 37 9f e0 e2 4f b8 67 83 a3 2f cd 5d 41 42 4c 91
+    74 ef 2c ... 78 more bytes>
+*/
+```
+See the OpenSSL [`SSL_export_keying_material`][] documentation for more
+information.
+
 ### `tlsSocket.getTLSTicket()`
 <!-- YAML
 added: v0.11.4
@@ -1308,7 +1341,7 @@ changes:
     with optional identity `hint` provided by the server or `null`
     in case of TLS 1.3 where `hint` was removed.
     It will be necessary to provide a custom `tls.checkServerIdentity()`
-    for the connection as the default one will try to check hostname/IP
+    for the connection as the default one will try to check host name/IP
     of the server against the certificate but that's not applicable for PSK
     because there won't be a certificate present.
     More information can be found in the [RFC 4279][].
@@ -1328,7 +1361,7 @@ changes:
     `SNICallback` option to [`tls.createServer()`][].
   * `checkServerIdentity(servername, cert)` {Function} A callback function
     to be used (instead of the builtin `tls.checkServerIdentity()` function)
-    when checking the server's hostname (or the provided `servername` when
+    when checking the server's host name (or the provided `servername` when
     explicitly set) against the certificate. This should return an {Error} if
     verification fails. The method should return `undefined` if the `servername`
     and `cert` are verified.
@@ -1899,6 +1932,7 @@ where `secureSocket` has the same API as `pair.cleartext`.
 [`'session'`]: #tls_event_session
 [`--tls-cipher-list`]: cli.html#cli_tls_cipher_list_list
 [`NODE_OPTIONS`]: cli.html#cli_node_options_options
+[`SSL_export_keying_material`]: https://www.openssl.org/docs/man1.1.1/man3/SSL_export_keying_material.html
 [`SSL_get_version`]: https://www.openssl.org/docs/man1.1.1/man3/SSL_get_version.html
 [`crypto.getCurves()`]: crypto.html#crypto_crypto_getcurves
 [`net.createServer()`]: net.html#net_net_createserver_options_connectionlistener
